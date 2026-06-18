@@ -62,9 +62,17 @@ def classify_sign(labels):
 
 
 def get_inner_Label(labels):
+    # Fall 1: Inneres Symbol wurde schon als eigenes Label erkannt
+    inner_label = (labels > 2).astype(np.uint8)
+
+    if inner_label.sum() > 0:
+        return inner_label
+
+    #Fall 2: Inneres Symbol wurde nicht als eigenes Label erkannt
     inverted_outer = (labels != 2).astype(np.uint8) # vertauscht vorder und hintergrund
     inner_label_region = sequential_region_labeling(inverted_outer) # neue Rgionen markierung der Vertauschten binaryimages
     inner_label = (inner_label_region > 2).astype(np.uint8)
+
     return inner_label
 
 def split_labels(labels):
