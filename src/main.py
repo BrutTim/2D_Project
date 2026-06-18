@@ -238,7 +238,7 @@ def main():
     plt.show()
 
     sc.classify_sign(best_candidate, best_color)
-
+    sc.identify_sign()
 
 if __name__ == "__main__":
     main()

@@ -1,5 +1,10 @@
 import numpy as np
+from skimage import io
 from skimage.draw import polygon, disk
+from skimage.color import rgb2gray
+from skimage.transform import resize
+
+from masks.vorschriftzeichen_manifest import VORSCHRIFTZEICHEN_TEMPLATES
 
 
 def get_triangle_template():
@@ -67,3 +72,59 @@ def get_octagon_template():
     octagon_template[rr, cc] = 1
 
     return octagon_template
+
+
+def load_binary_template(path, size=128, threshold=0.8):
+    image = io.imread(path)
+
+    if image.ndim == 3:
+        if image.shape[2] == 4:
+            image = image[..., :3]
+        image = rgb2gray(image)
+    else:
+        image = image.astype(float)
+        if image.max() > 1:
+            image = image / 255.0
+
+    normalized = resize(
+        image,
+        (size, size),
+        order=0,
+        preserve_range=True,
+        anti_aliasing=False
+    )
+
+    return (normalized < threshold).astype(np.uint8)
+
+
+def get_vorschriftzeichen_templates_for_type(outer_type):
+    templates = []
+
+    for _code, sign_name, template_outer_type, path in VORSCHRIFTZEICHEN_TEMPLATES:
+        if template_outer_type != outer_type:
+            continue
+
+        if not path.exists():
+            continue
+
+        templates.append((
+            load_binary_template(path),
+            sign_name
+        ))
+
+    return templates
+
+
+def get_all_vorschriftzeichen_templates():
+    templates = []
+
+    for _code, sign_name, _outer_type, path in VORSCHRIFTZEICHEN_TEMPLATES:
+        if not path.exists():
+            continue
+
+        templates.append((
+            load_binary_template(path),
+            sign_name
+        ))
+
+    return templates
