@@ -6,6 +6,7 @@ import SignClassification as sc
 from imageprocessing.Regionlabeling import sequential_region_labeling
 from imageprocessing.MorphologischesOpening import morphologisch_opening
 from imageprocessing.RGBtoHSV import rgb_to_hsv
+from imageprocessing.Scaling import normalize_image
 from masks.colour_masks import get_color_mask
 
 
@@ -63,6 +64,28 @@ def score_candidate(candidate):
     score = area * fill_ratio
 
     return score
+
+def extract_light_symbol_mask(image, sign_candidate):
+    gray = make_gray_image(image)
+
+    symbol_mask = (
+        (gray > 180) &
+        (sign_candidate > 0)
+    )
+
+    return symbol_mask.astype(np.uint8)
+
+def extract_dark_symbol_mask(image, sign_candidate):
+
+    gray = make_gray_image(image)
+
+    symbol_mask = (
+        (gray < 80) &
+        (sign_candidate > 0)
+    )
+
+    return symbol_mask.astype(np.uint8)
+
 
 def select_best_sign_candidate(labels):
     best_label = None
@@ -183,11 +206,12 @@ def make_gray_image(image):
 
 
 def main():
-    image = io.imread("../resources/Vorgeschriebene-Fahrtrichtnug-geradeaus_IDEAl.jpg")
+    image = io.imread("../resources/vorgeschriebene-fahrtrichtung-geradeaus_draussen.jpg")
     hsv_image = rgb_to_hsv(image)
 
     masks = get_color_mask(hsv_image)
 
+    timmi = []
     candidates = []
     fig, axes = plt.subplots(3, 3, figsize=(14, 8))
     i = 0
@@ -205,6 +229,8 @@ def main():
         axes[i,1].set_title(f"Farbmaske" + str(mask_name) + " nach Opening")
         axes[i,1].axis("off")
 
+        timmi.append(clean_mask)
+
         labels = sequential_region_labeling(clean_mask)
         axes[i, 2].imshow(labels, cmap="nipy_spectral")
         axes[i, 2].set_title("Region Labeling")
@@ -215,6 +241,7 @@ def main():
         sign_candidate = select_best_sign_candidate(labels)
         candidates.append((mask_name, sign_candidate))
         i =+ 1
+
 
     best_color = None
     best_candidate = None
@@ -238,6 +265,18 @@ def main():
     plt.show()
 
     sc.classify_sign(best_candidate, best_color)
+
+
+    symbol_mask = extract_dark_symbol_mask(image, best_candidate)
+
+    normalized_symbol = normalize_image(symbol_mask, 128)
+
+    sc.identify_sign(normalized_symbol)
+
+    #plt.imshow(normalized_symbol, cmap="gray", vmin=0, vmax=1)
+    #plt.title("Normalisiertes Symbol")
+    #plt.axis("off")
+    #plt.show()
 
 
 if __name__ == "__main__":
