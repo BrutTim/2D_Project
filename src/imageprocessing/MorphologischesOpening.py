@@ -7,7 +7,7 @@ filter = np.array([
     [1, 1, 1],
     [1, 1, 1]
 ], dtype=np.uint8)
-iter_num = 2
+iter_num = 3
 
 def dilate(in_image):
     image = np.asarray(in_image, dtype=float)
