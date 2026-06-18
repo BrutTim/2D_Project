@@ -83,7 +83,9 @@ def classify_sign(sign_candidate, color):
     return type, score
 
 
-def get_inner_Label(labels):
+def get_inner_Label(normalized_symbol):
+    labels = sequential_region_labeling(normalized_symbol)
+
     inner_label = labels.copy()
     inner_label[inner_label <= 2] = 0
 
@@ -99,22 +101,45 @@ def get_inner_Label(labels):
 
     return inner_label
 
-def identify_sign(normalized_symbol):
-    labels = sequential_region_labeling(normalized_symbol)
-    inner_label = get_inner_Label(labels)
 
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
-    axes[0].imshow(normalized_symbol, cmap="gray", vmin=0, vmax=1)
-    axes[0].set_title("Normalized Symbol")
-    axes[0].axis("off")
+def identify_sign(outer_type, inner_label):
+    if outer_type == "octagon":
+        return "Halt. Vorfahrt gewaehren"
 
-    axes[1].imshow(labels, cmap="nipy_spectral")
-    axes[1].set_title(f"All Labels: {np.unique(labels)}")
-    axes[1].axis("off")
+    if outer_type == "diamond":
+        return "Vorfahrtstrasse"
 
-    axes[2].imshow(inner_label, cmap="nipy_spectral")
-    axes[2].set_title(f"Inner Labels: {np.unique(inner_label)}")
-    axes[2].axis("off")
+    sign_name, score = classify_inner_label(inner_label, outer_type)
 
-    plt.show()
+    if score < 0.3:
+        return "Unbekanntes Schild"
+
+    return sign_name
+
+def classify_inner_label(inner_label, outer_type):
+    templates = td.get_vorschriftzeichen_templates_for_type(outer_type)
+
+    if len(templates) == 0:
+        return "Unbekanntes Schild", 0.0
+
+    inner_normalized = Scaling.normalize_image(inner_label, 128)
+
+    best_name = "Unbekanntes Schild"
+    best_score = 0.0
+
+    for template, sign_name in templates:
+        template_normalized = Scaling.normalize_image(template, 128)
+
+        score = calculate_iou(
+            inner_normalized,
+            template_normalized
+        )
+
+        print(f"Inner Score: {score:.3f}, Schild: {sign_name}")
+
+        if score > best_score:
+            best_score = score
+            best_name = sign_name
+
+    return best_name, best_score

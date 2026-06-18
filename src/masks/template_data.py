@@ -3,6 +3,7 @@ from skimage import io
 from skimage.draw import polygon, disk
 from skimage.color import rgb2gray
 from skimage.transform import resize
+from scipy.ndimage import binary_fill_holes
 
 from masks.vorschriftzeichen_manifest import VORSCHRIFTZEICHEN_TEMPLATES
 
@@ -97,6 +98,67 @@ def load_binary_template(path, size=128, threshold=0.8):
     return (normalized < threshold).astype(np.uint8)
 
 
+def load_inner_symbol_template(path, outer_type, size=128):
+    image = io.imread(path)
+
+    if image.ndim == 2:
+        return load_binary_template(path, size=size)
+
+    if image.shape[2] == 4:
+        image = image[..., :3]
+
+    image = image.astype(float)
+    if image.max() > 1:
+        image = image / 255.0
+
+    red = image[..., 0]
+    green = image[..., 1]
+    blue = image[..., 2]
+
+    blue_sign = (
+        (blue > 0.35) &
+        (blue > red + 0.12) &
+        (blue > green + 0.04)
+    )
+
+    red_sign = (
+        (red > 0.45) &
+        (red > green + 0.12) &
+        (red > blue + 0.12)
+    )
+
+    dark_symbol = (
+        (red < 0.25) &
+        (green < 0.25) &
+        (blue < 0.25)
+    )
+
+    filled_blue_area = binary_fill_holes(blue_sign)
+    white_symbol = (
+        (red > 0.82) &
+        (green > 0.82) &
+        (blue > 0.82)
+    )
+    white_symbol_on_blue = filled_blue_area & white_symbol
+
+    if white_symbol_on_blue.sum() > 20:
+        symbol = white_symbol_on_blue
+    elif dark_symbol.sum() > 20:
+        symbol = dark_symbol
+    else:
+        symbol = load_binary_template(path, size=size)
+
+    normalized = resize(
+        symbol.astype(np.uint8),
+        (size, size),
+        order=0,
+        preserve_range=True,
+        anti_aliasing=False
+    )
+
+    return (normalized > 0.5).astype(np.uint8)
+
+
 def get_vorschriftzeichen_templates_for_type(outer_type):
     templates = []
 
@@ -108,7 +170,7 @@ def get_vorschriftzeichen_templates_for_type(outer_type):
             continue
 
         templates.append((
-            load_binary_template(path),
+            load_inner_symbol_template(path, outer_type),
             sign_name
         ))
 
@@ -123,7 +185,7 @@ def get_all_vorschriftzeichen_templates():
             continue
 
         templates.append((
-            load_binary_template(path),
+            load_inner_symbol_template(path, _outer_type),
             sign_name
         ))
 

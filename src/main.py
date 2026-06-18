@@ -206,7 +206,7 @@ def make_gray_image(image):
 
 
 def main():
-    image = io.imread("../resources/vorgeschriebene-fahrtrichtung-geradeaus_draussen.jpg")
+    image = io.imread("resources/Vorgeschriebene-Fahrtrichtnug-geradeaus_IDEAl.jpg")
     hsv_image = rgb_to_hsv(image)
 
     masks = get_color_mask(hsv_image)
@@ -264,14 +264,14 @@ def main():
     plt.axis("off")
     plt.show()
 
-    sc.classify_sign(best_candidate, best_color)
-    sc.identify_sign()
+    type,score = sc.classify_sign(best_candidate, best_color)
 
     symbol_mask = extract_dark_symbol_mask(image, best_candidate)
-
     normalized_symbol = normalize_image(symbol_mask, 128)
 
-    sc.identify_sign(normalized_symbol)
+    inner_label = sc.get_inner_Label(normalized_symbol)
+
+    print(sc.classify_inner_label(inner_label, type))
 
     #plt.imshow(normalized_symbol, cmap="gray", vmin=0, vmax=1)
     #plt.title("Normalisiertes Symbol")
