@@ -50,7 +50,6 @@ def choose_shape_with_color(scores, color):
 
     return best_shape, adjusted_scores[best_shape]
 
-
 def classify_type_scores(mask):
     scores = {}
 
@@ -85,57 +84,37 @@ def classify_sign(sign_candidate, color):
 
 
 def get_inner_Label(labels):
-    # Fall 1: Inneres Symbol wurde schon als eigenes Label erkannt
-    inner_label = (labels > 2).astype(np.uint8)
+    inner_label = labels.copy()
+    inner_label[inner_label <= 2] = 0
 
-    if inner_label.sum() > 0:
+    if np.any(inner_label > 0):
         return inner_label
 
     # Fall 2: Inneres Symbol wurde nicht als eigenes Label erkannt
     inverted_outer = (labels != 2).astype(np.uint8)
     inner_label_region = sequential_region_labeling(inverted_outer)
-    inner_label = (inner_label_region > 2).astype(np.uint8)
+
+    inner_label = inner_label_region.copy()
+    inner_label[inner_label <= 2] = 0
 
     return inner_label
 
+def identify_sign(normalized_symbol):
+    labels = sequential_region_labeling(normalized_symbol)
+    inner_label = get_inner_Label(labels)
 
-def plot_split_labels(labels, outer_label, inner_label):
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
-    axes[0].imshow(
-        labels,
-        cmap="nipy_spectral",
-        vmin=0,
-        vmax=max(2, labels.max())
-    )
-    axes[0].set_title(f"Alle Labels: {np.unique(labels)}")
+    axes[0].imshow(normalized_symbol, cmap="gray", vmin=0, vmax=1)
+    axes[0].set_title("Normalized Symbol")
     axes[0].axis("off")
 
-    axes[1].imshow(
-        outer_label,
-        cmap="gray",
-        vmin=0,
-        vmax=1
-    )
-    axes[1].set_title(
-        f"Outer Label - {outer_label.sum()} Pixel"
-    )
+    axes[1].imshow(labels, cmap="nipy_spectral")
+    axes[1].set_title(f"All Labels: {np.unique(labels)}")
     axes[1].axis("off")
 
-    axes[2].imshow(
-        inner_label,
-        cmap="nipy_spectral",
-        vmin=0,
-        vmax=max(2, inner_label.max())
-    )
-    axes[2].set_title(
-        f"Inner Labels: {np.unique(inner_label)}"
-    )
+    axes[2].imshow(inner_label, cmap="nipy_spectral")
+    axes[2].set_title(f"Inner Labels: {np.unique(inner_label)}")
     axes[2].axis("off")
 
-    plt.tight_layout()
     plt.show()
-
-
-def identify_sign(binary_image):
-    return None
