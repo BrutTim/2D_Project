@@ -4,6 +4,7 @@ import template_data as td
 from scipy.ndimage import binary_fill_holes
 from imageprocessing import Scaling
 import matplotlib.pyplot as plt
+from imageprocessing.Regionlabeling import sequential_region_labeling
 
 
 def classify_type(outer_label,labels):
@@ -59,11 +60,19 @@ def classify_sign(labels):
 
     return identify_sign(signtype, inner_label)
 
+
+def get_inner_Label(labels):
+    inverted_outer = (labels != 2).astype(np.uint8) # vertauscht vorder und hintergrund
+    inner_label_region = sequential_region_labeling(inverted_outer) # neue Rgionen markierung der Vertauschten binaryimages
+    inner_label = (inner_label_region > 2).astype(np.uint8)
+    return inner_label
+
 def split_labels(labels):
     outer_label = (labels == 2).astype(np.uint8)
-    inner_label = (labels > 2).astype(np.uint8)
+    inner_label = get_inner_Label(labels)
 
     plot_split_labels(labels, outer_label, inner_label)
+
 
     return inner_label, outer_label
 
@@ -103,15 +112,14 @@ def plot_split_labels(labels, outer_label, inner_label):
     )
     axes[1].axis("off")
 
-    # Innere Symbole
     axes[2].imshow(
         inner_label,
-        cmap="gray",
+        cmap="nipy_spectral",
         vmin=0,
-        vmax=1
+        vmax=max(2, inner_label.max())
     )
     axes[2].set_title(
-        f"Inner Labels – {inner_label.sum()} Pixel"
+        f"Inner Labels: {np.unique(inner_label)}"
     )
     axes[2].axis("off")
 

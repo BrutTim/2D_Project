@@ -24,7 +24,7 @@ def make_gray_image(image):
 
 
 def main():
-    image = io.imread("resources/Vorfahrtsstraße_Draussen.jpg")
+    image = io.imread("resources/Stop-Halt-Vorfahrt-gewaehren_Ideal.png")
 
     img_array = np.array(image)
 
