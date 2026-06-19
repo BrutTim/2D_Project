@@ -38,8 +38,23 @@ def get_blue_mask(h, s, v):
 
     return blue_mask.astype(np.uint8)
 
+def get_saturation_mask(h, s, v):
+
+    saturation_mask = (
+        (s >= 0.45) &
+        (v >= 0.20)
+    )
+
+    return saturation_mask.astype(np.uint8)
+
 def get_color_mask(hsv):
 
     h, s, v = split_hsv(hsv)
 
     return get_red_mask(h, s, v), get_yellow_mask(h, s, v), get_blue_mask(h, s, v)
+
+def get_sign_position_mask(hsv):
+
+    h, s, v = split_hsv(hsv)
+
+    return get_saturation_mask(h, s, v)

@@ -7,7 +7,7 @@ from imageprocessing.Regionlabeling import sequential_region_labeling
 from imageprocessing.MorphologischesOpening import morphologisch_opening
 from imageprocessing.RGBtoHSV import rgb_to_hsv
 from imageprocessing.Scaling import normalize_image
-from masks.colour_masks import get_color_mask
+from masks.colour_masks import get_color_mask, get_sign_position_mask
 
 
 def print_label_stats(labels):
@@ -205,57 +205,49 @@ def make_gray_image(image):
         return image
 
 
+def detect_candidate_color(hsv_image, sign_candidate):
+    masks = get_color_mask(hsv_image)
+    candidate = sign_candidate > 0
+
+    color_scores = {
+        "red": np.logical_and(masks[0] > 0, candidate).sum(),
+        "yellow": np.logical_and(masks[1] > 0, candidate).sum(),
+        "blue": np.logical_and(masks[2] > 0, candidate).sum(),
+    }
+
+    best_color = max(color_scores, key=color_scores.get)
+
+    if color_scores[best_color] == 0:
+        return None
+
+    return best_color
+
+
 def main():
-    image = io.imread("resources/Vorgeschriebene-Fahrtrichtnug-geradeaus_IDEAl.jpg")
+    image = io.imread("../resources/iax-vorschriftzeichen-vz-209-30-vorgeschriebene-fahrtrichtung-geradeausra1600mm-2_1.jpg")
     hsv_image = rgb_to_hsv(image)
 
-    masks = get_color_mask(hsv_image)
+    position_mask = get_sign_position_mask(hsv_image)
+    clean_mask = morphologisch_opening(position_mask)
+    labels = sequential_region_labeling(clean_mask)
 
-    timmi = []
-    candidates = []
-    fig, axes = plt.subplots(3, 3, figsize=(14, 8))
-    i = 0
-    for mask_name, mask in [
-        ("red", masks[0]),
-        ("yellow", masks[1]),
-        ("blue", masks[2]),
-    ]:
-        axes[i,0].imshow(mask, cmap="gray", vmin=0, vmax=1)
-        axes[i,0].set_title(f"Farbmaske" + str(mask_name) + "vor Opening")
-        axes[i,0].axis("off")
+    fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+    axes[0].imshow(position_mask, cmap="gray", vmin=0, vmax=1)
+    axes[0].set_title("Saettigungsmaske vor Opening")
+    axes[0].axis("off")
 
-        clean_mask = morphologisch_opening(mask)
-        axes[i,1].imshow(clean_mask, cmap="gray", vmin=0, vmax=1)
-        axes[i,1].set_title(f"Farbmaske" + str(mask_name) + " nach Opening")
-        axes[i,1].axis("off")
+    axes[1].imshow(clean_mask, cmap="gray", vmin=0, vmax=1)
+    axes[1].set_title("Saettigungsmaske nach Opening")
+    axes[1].axis("off")
 
-        timmi.append(clean_mask)
+    axes[2].imshow(labels, cmap="nipy_spectral")
+    axes[2].set_title("Region Labeling")
+    axes[2].axis("off")
 
-        labels = sequential_region_labeling(clean_mask)
-        axes[i, 2].imshow(labels, cmap="nipy_spectral")
-        axes[i, 2].set_title("Region Labeling")
-        axes[i, 2].axis("off")
+    print_label_stats(labels)
 
-        print_label_stats(labels)
-
-        sign_candidate = select_best_sign_candidate(labels)
-        candidates.append((mask_name, sign_candidate))
-        i =+ 1
-
-
-    best_color = None
-    best_candidate = None
-    best_score = 0
-
-    for color, candidate in candidates:
-        score = score_candidate(candidate)
-
-        print(color, score)
-
-        if score > best_score:
-            best_score = score
-            best_color = color
-            best_candidate = candidate
+    best_candidate = select_best_sign_candidate(labels)
+    best_color = detect_candidate_color(hsv_image, best_candidate)
 
     print("Beste Schildfarbe:", best_color)
 
