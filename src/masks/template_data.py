@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import numpy as np
 from skimage import io
 from skimage.draw import polygon, disk
@@ -21,6 +22,20 @@ def get_triangle_template():
 
     return triangle_template
 
+
+def get_downwards_triangle_template():
+    downwards_triangle_template = np.zeros((128, 128), dtype=np.uint8)
+
+    rows = np.array([5, 5, 122])
+    cols = np.array([5, 122, 64])
+
+    rr, cc = polygon(rows, cols, downwards_triangle_template.shape)
+    downwards_triangle_template[rr, cc] = 1
+
+    return downwards_triangle_template
+
+
+
 def get_diamond_template():
     diamond_template = np.zeros((128, 128), dtype=np.uint8)
 
@@ -35,6 +50,23 @@ def get_diamond_template():
 
     diamond_template[rr, cc] = 1
     return diamond_template
+
+def get_square_template():
+    square_template = np.zeros((128, 128), dtype=np.uint8)
+
+    square_rows = np.array([5, 5, 122, 122])
+    square_cols = np.array([5, 122, 122, 5])
+
+    rr, cc = polygon(
+        square_rows,
+        square_cols,
+        square_template.shape
+    )
+
+    square_template[rr, cc] = 1
+
+    return square_template
+
 
 def get_circle_template():
 
@@ -73,6 +105,9 @@ def get_octagon_template():
     octagon_template[rr, cc] = 1
 
     return octagon_template
+
+
+
 
 
 def load_binary_template(path, size=128, threshold=0.8):

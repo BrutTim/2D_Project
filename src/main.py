@@ -9,40 +9,6 @@ from imageprocessing.RGBtoHSV import rgb_to_hsv
 from imageprocessing.Scaling import normalize_image
 from masks.colour_masks import get_color_mask, get_sign_position_mask
 
-
-def print_label_stats(labels):
-    for label in np.unique(labels):
-        if label == 0:
-            continue
-
-        mask = labels == label
-        area = mask.sum()
-
-        ys, xs = np.where(mask)
-        height = ys.max() - ys.min() + 1
-        width = xs.max() - xs.min() + 1
-
-        aspect_ratio = width / height
-        fill_ratio = area / (width * height)
-
-        touches_border = (
-            ys.min() == 0 or
-            xs.min() == 0 or
-            ys.max() == labels.shape[0] - 1 or
-            xs.max() == labels.shape[1] - 1
-        )
-
-        print(
-            f"Label {label}: "
-            f"area={area}, "
-            f"bbox={width}x{height}, "
-            f"aspect={aspect_ratio:.2f}, "
-            f"fill={fill_ratio:.2f}, "
-            f"border={touches_border}"
-        )
-    pass
-
-
 def score_candidate(candidate):
     area = candidate.sum()
 
@@ -224,7 +190,7 @@ def detect_candidate_color(hsv_image, sign_candidate):
 
 
 def main():
-    image = io.imread("../resources/iax-vorschriftzeichen-vz-209-30-vorgeschriebene-fahrtrichtung-geradeausra1600mm-2_1.jpg")
+    image = io.imread("../resources/STOP_sign_druassen.jpg")
     hsv_image = rgb_to_hsv(image)
 
     position_mask = get_sign_position_mask(hsv_image)
@@ -243,8 +209,6 @@ def main():
     axes[2].imshow(labels, cmap="nipy_spectral")
     axes[2].set_title("Region Labeling")
     axes[2].axis("off")
-
-    print_label_stats(labels)
 
     best_candidate = select_best_sign_candidate(labels)
     best_color = detect_candidate_color(hsv_image, best_candidate)

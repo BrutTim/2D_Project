@@ -4,6 +4,7 @@ from scipy.ndimage import binary_fill_holes
 from imageprocessing import Scaling
 import matplotlib.pyplot as plt
 from imageprocessing.Regionlabeling import sequential_region_labeling
+from imageprocessing.CornerDetection import count_corners
 
 def choose_shape_with_color(scores, color):
     adjusted_scores = scores.copy()
@@ -32,22 +33,68 @@ def calculate_iou(mask, template):
 
     return intersection / union if union > 0 else 0.0
 
-def choose_shape_with_color(scores, color):
+def choose_shape(scores, color, corners):
     adjusted_scores = scores.copy()
+    print(f'Ecken: ' + str(corners))
 
     if color == "red":
         adjusted_scores["diamond"] *= 0.75
         adjusted_scores["octagon"] *= 1.10
         adjusted_scores["triangle"] *= 1.05
+        adjusted_scores["downwards_triangle"] *= 1.10
 
     if color == "yellow":
         adjusted_scores["diamond"] *= 1.20
 
     if color == "blue":
         adjusted_scores["circle"] *= 1.20
+        adjusted_scores["square"] *= 1.10
+
+    if corners <= 2:
+        adjusted_scores["circle"] *= 1.25
+
+    elif 3 <= corners <= 4:
+        adjusted_scores["triangle"] *= 1.20
+        adjusted_scores["downwards_triangle"] *= 1.20
+
+    elif 4 <= corners <= 5:
+        adjusted_scores["square"] *= 1.20
+        adjusted_scores["diamond"] *= 1.15
+
+    elif 6 <= corners <= 10:
+        adjusted_scores["octagon"] *= 1.35
+        adjusted_scores["circle"] *= 0.75
+
+
+    if color == "red":
+        # Rote runde/achteckige Schilder
+        if 6 <= corners <= 10:
+            adjusted_scores["octagon"] *= 1.30
+            adjusted_scores["circle"] *= 0.70
+
+        if corners <= 3:
+            adjusted_scores["circle"] *= 1.25
+            adjusted_scores["octagon"] *= 0.75
+
+    if color == "yellow":
+        # Vorfahrtsstrasse ist eine quadratische Form.
+        if 4 <= corners <= 5:
+            adjusted_scores["diamond"] *= 1.30
+            adjusted_scores["square"] *= 0.85
+
+    if color == "blue":
+        # Blaue Vorschriftzeichen sind oft kreisfoermig,
+        # blaue Hinweisschilder eher rechteckig/quadratisch.
+        if corners <= 3:
+            adjusted_scores["circle"] *= 1.25
+        if 4 <= corners <= 5:
+            adjusted_scores["square"] *= 1.20
+
+    # Downwards triangle separat bevorzugen, wenn die Farbe passt.
+    if color == "red" and 3 <= corners <= 4:
+        adjusted_scores["downwards_triangle"] *= 1.30
 
     best_shape = max(adjusted_scores, key=adjusted_scores.get)
-
     return best_shape, adjusted_scores[best_shape]
 
 def classify_type_scores(mask):
@@ -58,6 +105,8 @@ def classify_type_scores(mask):
         ("diamond", td.get_diamond_template()),
         ("circle", td.get_circle_template()),
         ("octagon", td.get_octagon_template()),
+        ("square", td.get_square_template()),
+        ("downwards_triangle", td.get_downwards_triangle_template()),
     ]
 
     for form_name, template in forms:
@@ -68,17 +117,22 @@ def classify_type_scores(mask):
 
 
 def classify_sign(sign_candidate, color):
+    """
+    if color == 'red':
+        corners = count_corners(sign_candidate)
+    """
+    corners = count_corners(sign_candidate)
 
     filled_sign_candidate = binary_fill_holes(sign_candidate)
     normalized_sign_candidate = Scaling.normalize_image(filled_sign_candidate, 128)
 
     plt.imshow(normalized_sign_candidate, cmap="nipy_spectral",)
-    plt.title(f"normalized sign candidate")
+    plt.title(f"normalized and filled sign candidate")
     plt.axis("off")
     plt.show()
 
     scores = classify_type_scores(normalized_sign_candidate)
-    type, score = choose_shape_with_color(scores, color)
+    type, score = choose_shape(scores, color, corners)
     print(type + ':' + str(score))
     return type, score
 
