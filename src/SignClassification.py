@@ -38,19 +38,38 @@ def choose_shape(scores, color, corners):
     print(f'Ecken: ' + str(corners))
 
     if color == "red":
-        adjusted_scores["diamond"] *= 0.75
-        adjusted_scores["octagon"] *= 1.10
-        adjusted_scores["triangle"] *= 1.05
-        adjusted_scores["downwards_triangle"] *= 1.10
+
+        if corners < 2:
+            adjusted_scores["circle"] *= 1.20
+        elif 2 <= corners <= 4:
+            adjusted_scores["triangle"] *= 1.20
+        elif 5 <= corners <= 10:
+            adjusted_scores["octagon"] *= 1.20
+
+        adjusted_scores["diamond"] *= 0.0
+        adjusted_scores["square"] *= 0.0
 
     if color == "yellow":
-        adjusted_scores["diamond"] *= 1.20
+        adjusted_scores["diamond"] *= 0.0
+        adjusted_scores["octagon"] *= 0.0
+        adjusted_scores["triangle"] *= 0.0
+        adjusted_scores["downwards_triangle"] *= 0.0
+        adjusted_scores["square"] *= 0.0
+        adjusted_scores["circle"] *= 0.0
 
     if color == "blue":
-        adjusted_scores["circle"] *= 1.20
-        adjusted_scores["square"] *= 1.10
+        if corners <= 2:
+            adjusted_scores["circle"] *= 1.20
+        elif 2 <= corners <= 4:
+            adjusted_scores["square"] *= 1.20
 
-    if corners <= 2:
+        adjusted_scores["diamond"] *= 0.0
+        adjusted_scores["octagon"] *= 0.0
+        adjusted_scores["triangle"] *= 0.0
+        adjusted_scores["downwards_triangle"] *= 0.0
+        adjusted_scores["diamond"] *= 0.0
+
+    """if corners <= 2:
         adjusted_scores["circle"] *= 1.25
 
     elif 3 <= corners <= 4:
@@ -93,7 +112,7 @@ def choose_shape(scores, color, corners):
     # Downwards triangle separat bevorzugen, wenn die Farbe passt.
     if color == "red" and 3 <= corners <= 4:
         adjusted_scores["downwards_triangle"] *= 1.30
-
+    """
     best_shape = max(adjusted_scores, key=adjusted_scores.get)
     return best_shape, adjusted_scores[best_shape]
 
@@ -117,14 +136,11 @@ def classify_type_scores(mask):
 
 
 def classify_sign(sign_candidate, color):
-    """
-    if color == 'red':
-        corners = count_corners(sign_candidate)
-    """
-    corners = count_corners(sign_candidate)
 
     filled_sign_candidate = binary_fill_holes(sign_candidate)
     normalized_sign_candidate = Scaling.normalize_image(filled_sign_candidate, 128)
+
+    corners = count_corners(normalized_sign_candidate)
 
     plt.imshow(normalized_sign_candidate, cmap="nipy_spectral",)
     plt.title(f"normalized and filled sign candidate")
@@ -139,17 +155,21 @@ def classify_sign(sign_candidate, color):
 
 def get_inner_Label(normalized_symbol):
     labels = sequential_region_labeling(normalized_symbol)
-
+    plt.imshow(labels, cmap="nipy_spectral",)
+    plt.title(f"labels for inner symbol")
+    plt.show()
     inner_label = labels.copy()
     inner_label[inner_label <= 2] = 0
 
-    if np.any(inner_label > 0):
-        return inner_label
+    """if np.any(inner_label > 0):
+        return inner_label"""
 
     # Fall 2: Inneres Symbol wurde nicht als eigenes Label erkannt
     inverted_outer = (labels != 2).astype(np.uint8)
     inner_label_region = sequential_region_labeling(inverted_outer)
-
+    plt.imshow(inner_label_region, cmap="nipy_spectral",)
+    plt.title(f"labels for outer symbol")
+    plt.show()
     inner_label = inner_label_region.copy()
     inner_label[inner_label <= 2] = 0
 

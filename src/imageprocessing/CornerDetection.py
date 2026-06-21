@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import numpy as np
 
 from imageprocessing.MorphologischesOpening import dilate, erode
@@ -106,15 +107,17 @@ def count_corners(
     mask,
     alpha=0.05,
     pre_sigma=0.8,
-    sigma=1.5,
-    threshold_ratio=0.08,
-    min_distance=6,
+    sigma=3.5,
+    threshold_ratio=0.2,
+    min_distance=5,
     padding=12
 ):
     binary = np.asarray(mask, dtype=bool)
     binary = pad_image(binary, padding, constant_value=False)
 
     image = gaussian_filter(binary.astype(float), sigma=pre_sigma)
+    plt.imshow(image, cmap="gray")
+    plt.show()
 
     iy, ix = np.gradient(image)
 

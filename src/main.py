@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.ndimage import binary_fill_holes
 import SignClassification as sc
+from imageprocessing.CornerDetection import count_corners
 from imageprocessing.Regionlabeling import sequential_region_labeling
 from imageprocessing.MorphologischesOpening import morphologisch_opening
 from imageprocessing.RGBtoHSV import rgb_to_hsv
@@ -190,7 +191,7 @@ def detect_candidate_color(hsv_image, sign_candidate):
 
 
 def main():
-    image = io.imread("../resources/STOP_sign_druassen.jpg")
+    image = io.imread("../resources/360_F_320560928_MRmpfCxAONdCzgbgtM5PnUy9qmkKfKYs.jpg")
     hsv_image = rgb_to_hsv(image)
 
     position_mask = get_sign_position_mask(hsv_image)
@@ -223,16 +224,16 @@ def main():
     type,score = sc.classify_sign(best_candidate, best_color)
 
     symbol_mask = extract_dark_symbol_mask(image, best_candidate)
+    plt.imshow(symbol_mask, cmap="gray", vmin=0, vmax=1)
+    plt.title("Symbol Mask")
+    plt.axis("off")
+    plt.show()
+
     normalized_symbol = normalize_image(symbol_mask, 128)
 
     inner_label = sc.get_inner_Label(normalized_symbol)
 
     print(sc.classify_inner_label(inner_label, type))
-
-    #plt.imshow(normalized_symbol, cmap="gray", vmin=0, vmax=1)
-    #plt.title("Normalisiertes Symbol")
-    #plt.axis("off")
-    #plt.show()
 
 
 if __name__ == "__main__":
