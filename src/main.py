@@ -197,7 +197,7 @@ def detect_candidate_color(hsv_image, sign_candidate):
 
 
 def main():
-    image = io.imread("resources/Gefahrenschild_Bulgarien_-_Steinschlag.jpg")
+    image = io.imread("resources/34242711-gefahrenschild-mit-einem-reh-darauf-Qp73.jpg")
     hsv_image = rgb_to_hsv(image)
 
     position_mask = get_sign_position_mask(hsv_image)
