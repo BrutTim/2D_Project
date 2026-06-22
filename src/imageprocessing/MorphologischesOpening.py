@@ -6,9 +6,13 @@ filter = np.array([
     [1, 1, 1],
     [1, 1, 1]
 ], dtype=np.uint8)
-iter_num = 3
-
-def dilate(in_image):
+'''filter = np.array([
+    [0, 1, 0],
+    [1, 1, 1],
+    [0, 1, 0]
+], dtype=np.uint8)
+'''
+def dilate(in_image,iter_num):
     image = np.asarray(in_image, dtype=float)
     struct_filter = np.asarray(filter, dtype=float)
     out_image = image.copy()
@@ -42,7 +46,7 @@ def dilate(in_image):
     return out_image
 
 
-def erode(in_image):
+def erode(in_image,iter_num):
     image = np.asarray(in_image, dtype=float)
     struct_filter = np.asarray(filter, dtype=float)
     out_image = image.copy()
@@ -75,8 +79,8 @@ def erode(in_image):
 
     return out_image
 
-def morphologisch_opening(in_image):
-    image = erode(in_image)
-    return dilate(image)
+def morphologisch_opening(in_image, iter_num):
+    image = erode(in_image, iter_num)
+    return dilate(image,iter_num)
 
 

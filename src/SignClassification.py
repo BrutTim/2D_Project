@@ -1,4 +1,6 @@
 import numpy as np
+
+from imageprocessing.MorphologischesOpening import morphologisch_opening
 from masks import template_data as td
 from scipy.ndimage import binary_fill_holes
 from imageprocessing import Scaling
@@ -32,6 +34,29 @@ def calculate_iou(mask, template):
     union = np.logical_or(mask, template).sum()
 
     return intersection / union if union > 0 else 0.0
+
+
+def print_template_matrix_preview(template, title, preview_size=16):
+    template = np.asarray(template, dtype=np.uint8)
+    height, width = template.shape
+    block_height = height // preview_size
+    block_width = width // preview_size
+
+    print(f"\nTemplate-Matrix: {title}")
+    print(f"Originalgroesse: {height}x{width}, gesetzte Pixel: {int(template.sum())}")
+    print(f"Preview {preview_size}x{preview_size}: 1 = Template-Pixel, 0 = Hintergrund")
+
+    for row in range(preview_size):
+        values = []
+        for col in range(preview_size):
+            block = template[
+                row * block_height:(row + 1) * block_height,
+                col * block_width:(col + 1) * block_width
+            ]
+            values.append("1" if block.mean() >= 0.25 else "0")
+        print(" ".join(values))
+    print()
+
 
 def choose_shape(scores, color, corners):
     adjusted_scores = scores.copy()
@@ -154,15 +179,18 @@ def classify_sign(sign_candidate, color):
 
 
 def get_inner_Label(normalized_symbol):
-    labels = sequential_region_labeling(normalized_symbol)
+    labels = morphologisch_opening(normalized_symbol,iter_num=1)
+    labels = sequential_region_labeling(labels)
     plt.imshow(labels, cmap="nipy_spectral",)
     plt.title(f"labels for inner symbol")
     plt.show()
-    inner_label = labels.copy()
-    inner_label[inner_label <= 2] = 0
 
-    """if np.any(inner_label > 0):
-        return inner_label"""
+
+    # inner_label = labels.copy()
+    # inner_label[inner_label <= 2] = 0
+
+    if np.any(labels > 0):
+        return labels
 
     # Fall 2: Inneres Symbol wurde nicht als eigenes Label erkannt
     inverted_outer = (labels != 2).astype(np.uint8)
@@ -201,6 +229,7 @@ def classify_inner_label(inner_label, outer_type):
 
     best_name = "Unbekanntes Schild"
     best_score = 0.0
+    best_template = None
 
     for template, sign_name in templates:
         template_normalized = Scaling.normalize_image(template, 128)
@@ -215,5 +244,13 @@ def classify_inner_label(inner_label, outer_type):
         if score > best_score:
             best_score = score
             best_name = sign_name
+            best_template = template_normalized
+
+    if best_template is not None:
+        print_template_matrix_preview(best_template, best_name)
+        plt.imshow(best_template, cmap="gray", vmin=0, vmax=1)
+        plt.title(f"Bestes normalisiertes Template: {best_name}")
+        plt.axis("off")
+        plt.show()
 
     return best_name, best_score
