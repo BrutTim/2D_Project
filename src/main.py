@@ -214,7 +214,7 @@ def build_yellow_diamond_candidate(hsv_image):
 
 
 def main():
-    image = io.imread("resources/34242711-gefahrenschild-mit-einem-reh-darauf-Qp73.jpg")
+    image = io.imread("resources/Baustellenschild.jpg")
     hsv_image = rgb_to_hsv(image)
 
     position_mask = get_sign_position_mask(hsv_image)
@@ -266,17 +266,12 @@ def main():
         print(sc.classify_diamond_sign(symbol_mask, best_candidate))
         return
 
-    inner_symbol = sc.extract_inner_symbol(symbol_mask, type)
+    inner_symbol = sc.get_inner_Label(symbol_mask, type)
     plt.imshow(inner_symbol, cmap="gray", vmin=0, vmax=1)
     plt.title("Inner Symbol Mask")
     plt.axis("off")
     plt.show()
-
-    normalized_symbol = normalize_image(inner_symbol, 128)
-
-    inner_label = sc.get_inner_Label(normalized_symbol)
-
-    print(sc.classify_inner_label(inner_label, type))
+    print(sc.classify_inner_label(inner_symbol, type))
 
 
 if __name__ == "__main__":

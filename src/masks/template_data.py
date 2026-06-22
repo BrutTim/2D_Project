@@ -4,7 +4,7 @@ from skimage import io
 from skimage.draw import polygon, disk
 from skimage.color import rgb2gray
 from skimage.transform import resize
-from scipy.ndimage import binary_fill_holes
+from scipy.ndimage import binary_dilation, binary_erosion, binary_fill_holes, label
 
 from masks.gefahrzeichen_manifest import GEFAHRZEICHEN_TEMPLATES
 from masks.vorschriftzeichen_manifest import VORSCHRIFTZEICHEN_TEMPLATES
@@ -109,6 +109,108 @@ def get_octagon_template():
 
 
 
+def make_outer_shape_mask(shape, outer_type):
+    height, width = shape
+    mask = np.zeros(shape, dtype=bool)
+
+    if outer_type == "circle":
+        center = (height // 2, width // 2)
+        radius = int(0.48 * min(height, width))
+        rr, cc = disk(center, radius, shape=shape)
+        mask[rr, cc] = True
+
+    elif outer_type == "triangle":
+        rows = np.array([0.04 * height, 0.95 * height, 0.95 * height])
+        cols = np.array([0.50 * width, 0.04 * width, 0.95 * width])
+        rr, cc = polygon(rows, cols, shape)
+        mask[rr, cc] = True
+
+    elif outer_type == "downwards_triangle":
+        rows = np.array([0.04 * height, 0.04 * height, 0.96 * height])
+        cols = np.array([0.04 * width, 0.96 * width, 0.50 * width])
+        rr, cc = polygon(rows, cols, shape)
+        mask[rr, cc] = True
+
+    elif outer_type == "octagon":
+        rows = np.array([
+            0.04 * height, 0.04 * height, 0.30 * height, 0.70 * height,
+            0.96 * height, 0.96 * height, 0.70 * height, 0.30 * height
+        ])
+        cols = np.array([
+            0.30 * width, 0.70 * width, 0.96 * width, 0.96 * width,
+            0.70 * width, 0.30 * width, 0.04 * width, 0.04 * width
+        ])
+        rr, cc = polygon(rows, cols, shape)
+        mask[rr, cc] = True
+
+    elif outer_type in ("square", "rectangle"):
+        y_min = int(0.04 * height)
+        y_max = int(0.96 * height)
+        x_min = int(0.04 * width)
+        x_max = int(0.96 * width)
+        mask[y_min:y_max, x_min:x_max] = True
+
+    return mask
+
+
+def remove_outer_shape_artifacts(symbol, outer_type):
+    symbol = np.asarray(symbol, dtype=bool)
+
+    if outer_type not in {
+        "circle", "triangle", "downwards_triangle",
+        "octagon", "square", "rectangle"
+    }:
+        return symbol.astype(np.uint8)
+
+    outer_shape = make_outer_shape_mask(symbol.shape, outer_type)
+    inner_shape = binary_erosion(
+        outer_shape,
+        structure=np.ones((17, 17), dtype=bool)
+    )
+    outer_border = outer_shape & ~inner_shape
+    outer_border = binary_dilation(
+        outer_border,
+        structure=np.ones((5, 5), dtype=bool)
+    )
+
+    component_labels, _count = label(symbol)
+    cleaned = np.zeros_like(symbol, dtype=bool)
+    total_area = symbol.shape[0] * symbol.shape[1]
+
+    for component_label in np.unique(component_labels):
+        if component_label == 0:
+            continue
+
+        component = component_labels == component_label
+        area = component.sum()
+
+        if area < 3:
+            continue
+
+        ys, xs = np.where(component)
+        height = ys.max() - ys.min() + 1
+        width = xs.max() - xs.min() + 1
+        bbox_area_ratio = (height * width) / total_area
+        border_overlap = np.logical_and(component, outer_border).sum() / area
+        inner_overlap = np.logical_and(component, inner_shape).sum() / area
+
+        if border_overlap > 0.35:
+            continue
+
+        if inner_overlap < 0.45:
+            continue
+
+        if bbox_area_ratio > 0.35:
+            continue
+
+        cleaned[component] = True
+
+    if cleaned.sum() == 0:
+        return symbol.astype(np.uint8)
+
+    return cleaned.astype(np.uint8)
+
+
 
 
 def load_binary_template(path, size=128, threshold=0.8):
@@ -192,7 +294,8 @@ def load_inner_symbol_template(path, outer_type, size=128):
         anti_aliasing=False
     )
 
-    return (normalized > 0.5).astype(np.uint8)
+    normalized = (normalized > 0.5).astype(np.uint8)
+    return remove_outer_shape_artifacts(normalized, outer_type)
 
 
 def get_vorschriftzeichen_templates_for_type(outer_type):

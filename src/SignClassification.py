@@ -1,6 +1,7 @@
 import numpy as np
 
 from imageprocessing.MorphologischesOpening import morphologisch_opening
+from imageprocessing.Scaling import normalize_image
 from masks import template_data as td
 from scipy.ndimage import binary_dilation, binary_erosion, binary_fill_holes
 from skimage.draw import disk, polygon
@@ -107,8 +108,8 @@ def make_outer_shape_mask(shape, outer_type):
         mask[rr, cc] = True
 
     elif outer_type == "triangle":
-        rows = np.array([0.04 * height, 0.96 * height, 0.96 * height])
-        cols = np.array([0.50 * width, 0.04 * width, 0.96 * width])
+        rows = np.array([0.04 * height, 0.95 * height, 0.95 * height])
+        cols = np.array([0.50 * width, 0.04 * width, 0.95 * width])
         rr, cc = polygon(rows, cols, shape)
         mask[rr, cc] = True
 
@@ -138,97 +139,6 @@ def make_outer_shape_mask(shape, outer_type):
         mask[y_min:y_max, x_min:x_max] = True
 
     return mask
-
-
-def remove_outer_shape_from_symbol_mask(symbol_mask, outer_type):
-    symbol_mask = np.asarray(symbol_mask, dtype=bool)
-    outer_shape = make_outer_shape_mask(symbol_mask.shape, outer_type)
-
-    plt.imshow(outer_shape, cmap="gray", vmin=0, vmax=1)
-    plt.title(f"Outer Shape Mask ({outer_type})")
-    plt.axis("off")
-    plt.show()
-
-    inner_shape = binary_erosion(
-        outer_shape,
-        structure=np.ones((13, 13), dtype=bool)
-    )
-
-    plt.imshow(inner_shape, cmap="gray", vmin=0, vmax=1)
-    plt.title("Eroded Inner Shape")
-    plt.axis("off")
-    plt.show()
-
-    outer_border = outer_shape & ~inner_shape
-    outer_border = binary_dilation(
-        outer_border,
-        structure=np.ones((5, 5), dtype=bool)
-    )
-
-    plt.imshow(outer_border, cmap="gray", vmin=0, vmax=1)
-    plt.title("Outer Border Removed From Symbol")
-    plt.axis("off")
-    plt.show()
-
-    inner_symbol = symbol_mask & ~outer_border
-    inner_symbol = inner_symbol & inner_shape
-
-    plt.imshow(inner_symbol, cmap="gray", vmin=0, vmax=1)
-    plt.title("Raw Inner Symbol")
-    plt.axis("off")
-    plt.show()
-
-    return inner_symbol.astype(np.uint8)
-
-
-def keep_relevant_inner_components(inner_symbol):
-    labels = sequential_region_labeling(inner_symbol)
-
-    plt.imshow(labels, cmap="nipy_spectral")
-    plt.title("Inner Symbol Component Labels")
-    plt.axis("off")
-    plt.show()
-
-    cleaned = np.zeros_like(inner_symbol, dtype=np.uint8)
-    total_area = inner_symbol.shape[0] * inner_symbol.shape[1]
-
-    for label in np.unique(labels):
-        if label == 0:
-            continue
-
-        component = labels == label
-        area = component.sum()
-
-        if area < 0.0008 * total_area:
-            continue
-
-        ys, xs = np.where(component)
-        height = ys.max() - ys.min() + 1
-        width = xs.max() - xs.min() + 1
-
-        if height < 3 or width < 3:
-            continue
-
-        cleaned[component] = 1
-
-    plt.imshow(cleaned, cmap="gray", vmin=0, vmax=1)
-    plt.title("Relevant Inner Components")
-    plt.axis("off")
-    plt.show()
-
-    return cleaned
-
-
-def extract_inner_symbol(symbol_mask, outer_type):
-    inner_symbol = remove_outer_shape_from_symbol_mask(symbol_mask, outer_type)
-    cleaned_inner_symbol = keep_relevant_inner_components(inner_symbol)
-
-    plt.imshow(cleaned_inner_symbol, cmap="gray", vmin=0, vmax=1)
-    plt.title("Extracted Inner Symbol")
-    plt.axis("off")
-    plt.show()
-
-    return cleaned_inner_symbol
 
 
 def classify_diamond_sign(symbol_mask, sign_candidate):
@@ -279,6 +189,14 @@ def fix_inverted_inner_symbol_mask(symbol_mask):
     )
     largest_component = labels == largest_label
     largest_ratio = largest_component.sum() / symbol_mask.size
+    large_components = np.zeros_like(symbol_mask, dtype=bool)
+
+    for label in foreground_labels:
+        component = labels == label
+        component_ratio = component.sum() / symbol_mask.size
+
+        if component_ratio >= 0.01:
+            large_components |= component
 
     ys, xs = np.where(largest_component)
     touches_border = (
@@ -294,11 +212,59 @@ def fix_inverted_inner_symbol_mask(symbol_mask):
         touches_border
     )
 
+    filled_large_components = binary_fill_holes(large_components)
+    hole_symbol = filled_large_components & ~large_components
+
+    if hole_symbol.sum() > 0:
+        hole_labels = sequential_region_labeling(hole_symbol.astype(np.uint8))
+        hole_components = [label for label in np.unique(hole_labels) if label != 0]
+
+        if len(hole_components) > 0:
+            valid_holes = np.zeros_like(hole_symbol, dtype=bool)
+
+            for hole_label in hole_components:
+                hole_component = hole_labels == hole_label
+                hole_area_ratio = hole_component.sum() / symbol_mask.size
+
+                if hole_area_ratio < 0.002:
+                    continue
+
+                hole_y_min, hole_x_min, hole_y_max, hole_x_max = component_bbox(hole_component)
+                hole_touches_border = (
+                    hole_y_min == 0 or
+                    hole_x_min == 0 or
+                    hole_y_max == symbol_mask.shape[0] - 1 or
+                    hole_x_max == symbol_mask.shape[1] - 1
+                )
+
+                if hole_touches_border:
+                    continue
+
+                valid_holes |= hole_component
+
+            # Nur invertieren, wenn die aktuelle Maske wirklich eine grosse
+            # gefuellte Flaeche ist (z.B. blauer Kreis mit weissem Pfeil als
+            # Loch). Bei Gefahrzeichen waere sonst der Dreiecksinnenraum ein
+            # falsches "Loch", weil der Rand als Vordergrund erkannt wird.
+            is_filled_foreground_shape = (
+                foreground_ratio > 0.35 and
+                largest_ratio > 0.20
+            )
+
+            if is_filled_foreground_shape and valid_holes.sum() / symbol_mask.size > 0.01:
+                corrected_symbol = valid_holes
+
+                plt.imshow(corrected_symbol, cmap="gray", vmin=0, vmax=1)
+                plt.title("Corrected Hole Inner Symbol")
+                plt.axis("off")
+                plt.show()
+
+                return corrected_symbol
+
     if not is_probably_background:
         return symbol_mask
 
-    filled_background = binary_fill_holes(largest_component)
-    corrected_symbol = filled_background & ~largest_component
+    corrected_symbol = hole_symbol
 
     plt.imshow(corrected_symbol, cmap="gray", vmin=0, vmax=1)
     plt.title("Corrected Inverted Inner Symbol")
@@ -310,8 +276,136 @@ def fix_inverted_inner_symbol_mask(symbol_mask):
 
     return corrected_symbol
 
+def component_bbox(component):
+    ys, xs = np.where(component)
+    return ys.min(), xs.min(), ys.max(), xs.max()
 
-def get_inner_Label(normalized_symbol):
+
+def bbox_distance(first_bbox, second_bbox):
+    first_y_min, first_x_min, first_y_max, first_x_max = first_bbox
+    second_y_min, second_x_min, second_y_max, second_x_max = second_bbox
+
+    y_distance = max(0, second_y_min - first_y_max, first_y_min - second_y_max)
+    x_distance = max(0, second_x_min - first_x_max, first_x_min - second_x_max)
+
+    return max(y_distance, x_distance)
+
+
+def make_inner_shape_mask(shape, outer_type):
+    outer_shape = make_outer_shape_mask(shape, outer_type)
+
+    erosion_size_by_type = {
+        "triangle": 19,
+        "downwards_triangle": 19,
+        "circle": 17,
+        "octagon": 15,
+        "square": 13,
+        "rectangle": 13,
+    }
+    erosion_size = erosion_size_by_type.get(outer_type, 15)
+
+    return binary_erosion(
+        outer_shape,
+        structure=np.ones((erosion_size, erosion_size), dtype=bool)
+    )
+
+
+def keep_relevant_inner_components(labels, outer_type=None):
+
+    cleaned = np.zeros_like(labels, dtype=np.uint8)
+    total_area = labels.shape[0] * labels.shape[1]
+    inner_shape = None
+    outer_border = None
+
+    if outer_type is not None:
+        outer_shape = make_outer_shape_mask(labels.shape, outer_type)
+        inner_shape = make_inner_shape_mask(labels.shape, outer_type)
+        outer_border = outer_shape & ~inner_shape
+        outer_border = binary_dilation(
+            outer_border,
+            structure=np.ones((5, 5), dtype=bool)
+        )
+
+    components = []
+
+    for label in np.unique(labels):
+        if label == 0:
+            continue
+
+        component = labels == label
+        area = component.sum()
+
+        if area < 3:
+            continue
+
+        ys, xs = np.where(component)
+        height = ys.max() - ys.min() + 1
+        width = xs.max() - xs.min() + 1
+
+        if height < 2 or width < 2:
+            continue
+
+        if inner_shape is not None:
+            inner_overlap = np.logical_and(component, inner_shape).sum() / area
+            border_overlap = np.logical_and(component, outer_border).sum() / area
+            bbox_area_ratio = (height * width) / total_area
+            component_area_ratio = area / total_area
+            is_large_inner_candidate = (
+                component_area_ratio >= 0.01 and
+                bbox_area_ratio <= 0.50
+            )
+
+            # Der Aussenrand ist gross, liegt stark in der Randzone und hat
+            # meistens eine riesige Bounding Box. Das innere Symbol nicht.
+            if is_large_inner_candidate:
+                if border_overlap > 0.75:
+                    continue
+
+                if inner_overlap < 0.20:
+                    continue
+            elif border_overlap > 0.35:
+                continue
+
+            elif inner_overlap < 0.55:
+                continue
+
+            elif bbox_area_ratio > 0.50:
+                continue
+
+        components.append({
+            "component": component,
+            "area": area,
+            "bbox": component_bbox(component),
+        })
+
+    if len(components) == 0:
+        plt.imshow(cleaned, cmap="gray", vmin=0, vmax=1)
+        plt.title("Relevant Inner Components")
+        plt.axis("off")
+        plt.show()
+        return cleaned
+
+    largest_component = max(components, key=lambda item: item["area"])
+    largest_bbox = largest_component["bbox"]
+    min_standalone_area = max(8, int(0.0008 * total_area))
+
+    for item in components:
+        close_to_main_symbol = bbox_distance(item["bbox"], largest_bbox) <= 18
+
+        if item["area"] < min_standalone_area and not close_to_main_symbol:
+            continue
+
+        cleaned[item["component"]] = 1
+
+    plt.imshow(cleaned, cmap="gray", vmin=0, vmax=1)
+    plt.title("Relevant Inner Components")
+    plt.axis("off")
+    plt.show()
+
+    return cleaned
+
+def get_inner_Label(symbol, outer_type=None):
+    normalized_symbol = normalize_image(symbol, 128)
     normalized_symbol = fix_inverted_inner_symbol_mask(normalized_symbol)
 
     plt.imshow(normalized_symbol, cmap="gray", vmin=0, vmax=1)
@@ -320,26 +414,19 @@ def get_inner_Label(normalized_symbol):
     plt.show()
 
     labels = sequential_region_labeling(normalized_symbol)
-    labels = morphologisch_opening(normalized_symbol,iter_num=1)
-    labels = sequential_region_labeling(labels)
     plt.imshow(labels, cmap="nipy_spectral",)
     plt.title(f"labels for inner symbol")
     plt.show()
 
+    cleaned = keep_relevant_inner_components(labels, outer_type)
+    cleaned = normalize_image(cleaned, 128).astype(np.uint8)
 
-    if np.any(labels > 0):
-        return labels
-
-    # Fall 2: Inneres Symbol wurde nicht als eigenes Label erkannt
-    inverted_outer = (labels != 2).astype(np.uint8)
-    inner_label_region = sequential_region_labeling(inverted_outer)
-    plt.imshow(inner_label_region, cmap="nipy_spectral",)
-    plt.title(f"labels for outer symbol")
+    plt.imshow(cleaned, cmap="gray", vmin=0, vmax=1)
+    plt.title("Normalized Inner Label Only")
+    plt.axis("off")
     plt.show()
-    inner_label = inner_label_region.copy()
-    inner_label[inner_label <= 2] = 0
 
-    return inner_label
+    return cleaned
 
 
 
