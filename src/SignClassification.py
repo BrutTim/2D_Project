@@ -274,6 +274,7 @@ def fix_inverted_inner_symbol_mask(symbol_mask):
     if corrected_symbol.sum() == 0:
         return symbol_mask
 
+    print("invertiert")
     return corrected_symbol
 
 def component_bbox(component):

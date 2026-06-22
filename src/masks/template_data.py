@@ -163,19 +163,33 @@ def remove_outer_shape_artifacts(symbol, outer_type):
         return symbol.astype(np.uint8)
 
     outer_shape = make_outer_shape_mask(symbol.shape, outer_type)
+
+    erosion_size_by_type = {
+        "circle": 25,
+        "triangle": 19,
+        "downwards_triangle": 19,
+        "octagon": 17,
+        "square": 15,
+        "rectangle": 15,
+    }
+
+    erosion_size = erosion_size_by_type.get(outer_type, 17)
+
     inner_shape = binary_erosion(
         outer_shape,
-        structure=np.ones((17, 17), dtype=bool)
+        structure=np.ones((erosion_size, erosion_size), dtype=bool)
     )
-    outer_border = outer_shape & ~inner_shape
-    outer_border = binary_dilation(
-        outer_border,
+
+    expected_border = outer_shape & ~inner_shape
+
+    expected_border = binary_dilation(
+        expected_border,
         structure=np.ones((5, 5), dtype=bool)
     )
 
     component_labels, _count = label(symbol)
+
     cleaned = np.zeros_like(symbol, dtype=bool)
-    total_area = symbol.shape[0] * symbol.shape[1]
 
     for component_label in np.unique(component_labels):
         if component_label == 0:
@@ -187,29 +201,38 @@ def remove_outer_shape_artifacts(symbol, outer_type):
         if area < 3:
             continue
 
-        ys, xs = np.where(component)
-        height = ys.max() - ys.min() + 1
-        width = xs.max() - xs.min() + 1
-        bbox_area_ratio = (height * width) / total_area
-        border_overlap = np.logical_and(component, outer_border).sum() / area
-        inner_overlap = np.logical_and(component, inner_shape).sum() / area
+        border_overlap = np.logical_and(
+            component,
+            expected_border
+        ).sum() / area
 
-        if border_overlap > 0.35:
+        outside_inner_overlap = np.logical_and(
+            component,
+            ~inner_shape
+        ).sum() / area
+
+        inside_inner_overlap = np.logical_and(
+            component,
+            inner_shape
+        ).sum() / area
+
+        if border_overlap > 0.20:
             continue
 
-        if inner_overlap < 0.45:
+        if outside_inner_overlap > 0.50:
             continue
 
-        if bbox_area_ratio > 0.35:
+        if inside_inner_overlap < 0.35:
             continue
 
         cleaned[component] = True
+
+    cleaned = cleaned & inner_shape
 
     if cleaned.sum() == 0:
         return symbol.astype(np.uint8)
 
     return cleaned.astype(np.uint8)
-
 
 
 
@@ -273,14 +296,36 @@ def load_inner_symbol_template(path, outer_type, size=128):
 
     filled_blue_area = binary_fill_holes(blue_sign)
     white_symbol = (
-        (red > 0.82) &
-        (green > 0.82) &
-        (blue > 0.82)
+            (red > 0.82) &
+            (green > 0.82) &
+            (blue > 0.82)
     )
     white_symbol_on_blue = filled_blue_area & white_symbol
 
+    inner_area = make_outer_shape_mask(red.shape, outer_type)
+    inner_area = binary_erosion(
+        inner_area,
+        structure=np.ones((25, 25), dtype=bool)
+    )
+
+    dark_symbol_inside = dark_symbol & inner_area
+
+    if outer_type == "circle":
+        red_symbol_inside = red_sign & inner_area
+    else:
+        red_symbol_inside = np.zeros_like(red_sign, dtype=bool)
+
+    if outer_type == "circle" and red_symbol_inside.sum() > 20:
+        combined_symbol = dark_symbol_inside | red_symbol_inside
+    else:
+        combined_symbol = dark_symbol_inside
+
     if white_symbol_on_blue.sum() > 20:
         symbol = white_symbol_on_blue
+    elif combined_symbol.sum() > 20:
+        symbol = combined_symbol
+    elif dark_symbol_inside.sum() > 20:
+        symbol = dark_symbol_inside
     elif dark_symbol.sum() > 20:
         symbol = dark_symbol
     else:

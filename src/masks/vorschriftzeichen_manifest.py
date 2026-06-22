@@ -43,4 +43,8 @@ VORSCHRIFTZEICHEN_TEMPLATES = [
     ("266", "Verbot fuer Fahrzeuge ueber angegebener tatsaechlicher Laenge", "circle", template_path("266")),
     ("280", "Ende des Ueberholverbots fuer Kraftfahrzeuge aller Art", "circle", template_path("280")),
     ("281", "Ende des Ueberholverbots fuer Kraftfahrzeuge ueber 3,5 t", "circle", template_path("281")),
+    ("282", "Ueberholverbots fuer Kraftfahrzeuge ueber 3,5 t", "circle", template_path("282")),
+    ("283", "Tempolimit 30", "circle", template_path("283")),
+    ("284", "Autobahn", "square", template_path("284")),
+
 ]
