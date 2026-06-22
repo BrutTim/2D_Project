@@ -88,12 +88,12 @@ def maximum_filter(image, size):
 
 def dilate_binary(mask):
     gray_mask = np.where(mask, 0.0, -1000.0)
-    return dilate(gray_mask) > -500.0
+    return dilate(gray_mask, 3) > -500.0
 
 
 def erode_binary(mask):
     gray_mask = mask.astype(float)
-    eroded = erode(gray_mask)
+    eroded = erode(gray_mask, 3)
     return eroded > -2.5
 
 

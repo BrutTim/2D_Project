@@ -9,6 +9,13 @@ from imageprocessing.RGBtoHSV import rgb_to_hsv
 from imageprocessing.Scaling import normalize_image
 from masks.colour_masks import get_color_mask, get_sign_position_mask
 
+
+def plot_image(axis, image, title, cmap="gray", vmin=None, vmax=None):
+    axis.imshow(image, cmap=cmap, vmin=vmin, vmax=vmax)
+    axis.set_title(title)
+    axis.axis("off")
+
+
 def score_candidate(candidate):
     area = candidate.sum()
 
@@ -190,25 +197,20 @@ def detect_candidate_color(hsv_image, sign_candidate):
 
 
 def main():
-    image = io.imread("../resources/iax-vorschriftzeichen-vz-209-30-vorgeschriebene-fahrtrichtung-geradeausra1600mm-2_1.jpg")
+    image = io.imread("resources/caravaning.info-verkehrschild_canva_ki.jpg")
     hsv_image = rgb_to_hsv(image)
 
     position_mask = get_sign_position_mask(hsv_image)
-    clean_mask = morphologisch_opening(position_mask)
+    clean_mask = morphologisch_opening(position_mask,3)
     labels = sequential_region_labeling(clean_mask)
 
     fig, axes = plt.subplots(1, 3, figsize=(14, 4))
-    axes[0].imshow(position_mask, cmap="gray", vmin=0, vmax=1)
-    axes[0].set_title("Saettigungsmaske vor Opening")
-    axes[0].axis("off")
-
-    axes[1].imshow(clean_mask, cmap="gray", vmin=0, vmax=1)
-    axes[1].set_title("Saettigungsmaske nach Opening")
-    axes[1].axis("off")
-
-    axes[2].imshow(labels, cmap="nipy_spectral")
-    axes[2].set_title("Region Labeling")
-    axes[2].axis("off")
+    axes = axes.ravel()
+    plot_image(axes[0], position_mask, "Saettigungsmaske vor Opening", vmin=0, vmax=1)
+    plot_image(axes[1], clean_mask, "Saettigungsmaske nach Opening", vmin=0, vmax=1)
+    plot_image(axes[2], labels, "Region Labeling", cmap="nipy_spectral")
+    plt.tight_layout()
+    plt.show()
 
     best_candidate = select_best_sign_candidate(labels)
     best_color = detect_candidate_color(hsv_image, best_candidate)
