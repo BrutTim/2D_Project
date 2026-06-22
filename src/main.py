@@ -230,7 +230,13 @@ def main():
     plt.axis("off")
     plt.show()
 
-    normalized_symbol = normalize_image(symbol_mask, 128)
+    inner_symbol = sc.extract_inner_symbol(symbol_mask, type)
+    plt.imshow(inner_symbol, cmap="gray", vmin=0, vmax=1)
+    plt.title("Inner Symbol Mask")
+    plt.axis("off")
+    plt.show()
+
+    normalized_symbol = normalize_image(inner_symbol, 128)
 
     inner_label = sc.get_inner_Label(normalized_symbol)
 
