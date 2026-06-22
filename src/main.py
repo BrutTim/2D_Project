@@ -7,41 +7,7 @@ from imageprocessing.Regionlabeling import sequential_region_labeling
 from imageprocessing.MorphologischesOpening import morphologisch_opening
 from imageprocessing.RGBtoHSV import rgb_to_hsv
 from imageprocessing.Scaling import normalize_image
-from masks.colour_masks import get_color_mask
-
-
-def print_label_stats(labels):
-    for label in np.unique(labels):
-        if label == 0:
-            continue
-
-        mask = labels == label
-        area = mask.sum()
-
-        ys, xs = np.where(mask)
-        height = ys.max() - ys.min() + 1
-        width = xs.max() - xs.min() + 1
-
-        aspect_ratio = width / height
-        fill_ratio = area / (width * height)
-
-        touches_border = (
-            ys.min() == 0 or
-            xs.min() == 0 or
-            ys.max() == labels.shape[0] - 1 or
-            xs.max() == labels.shape[1] - 1
-        )
-
-        print(
-            f"Label {label}: "
-            f"area={area}, "
-            f"bbox={width}x{height}, "
-            f"aspect={aspect_ratio:.2f}, "
-            f"fill={fill_ratio:.2f}, "
-            f"border={touches_border}"
-        )
-    pass
-
+from masks.colour_masks import get_color_mask, get_sign_position_mask
 
 def score_candidate(candidate):
     area = candidate.sum()
@@ -205,57 +171,47 @@ def make_gray_image(image):
         return image
 
 
+def detect_candidate_color(hsv_image, sign_candidate):
+    masks = get_color_mask(hsv_image)
+    candidate = sign_candidate > 0
+
+    color_scores = {
+        "red": np.logical_and(masks[0] > 0, candidate).sum(),
+        "yellow": np.logical_and(masks[1] > 0, candidate).sum(),
+        "blue": np.logical_and(masks[2] > 0, candidate).sum(),
+    }
+
+    best_color = max(color_scores, key=color_scores.get)
+
+    if color_scores[best_color] == 0:
+        return None
+
+    return best_color
+
+
 def main():
-    image = io.imread("resources/vorgeschriebene-fahrtrichtung-geradeaus_draussen.jpg")
+    image = io.imread("../resources/360_F_320560928_MRmpfCxAONdCzgbgtM5PnUy9qmkKfKYs.jpg")
     hsv_image = rgb_to_hsv(image)
 
-    masks = get_color_mask(hsv_image)
+    position_mask = get_sign_position_mask(hsv_image)
+    clean_mask = morphologisch_opening(position_mask)
+    labels = sequential_region_labeling(clean_mask)
 
-    timmi = []
-    candidates = []
-    fig, axes = plt.subplots(3, 3, figsize=(14, 8))
-    i = 0
-    for mask_name, mask in [
-        ("red", masks[0]),
-        ("yellow", masks[1]),
-        ("blue", masks[2]),
-    ]:
-        axes[i,0].imshow(mask, cmap="gray", vmin=0, vmax=1)
-        axes[i,0].set_title(f"Farbmaske" + str(mask_name) + "vor Opening")
-        axes[i,0].axis("off")
+    fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+    axes[0].imshow(position_mask, cmap="gray", vmin=0, vmax=1)
+    axes[0].set_title("Saettigungsmaske vor Opening")
+    axes[0].axis("off")
 
-        clean_mask = morphologisch_opening(mask)
-        axes[i,1].imshow(clean_mask, cmap="gray", vmin=0, vmax=1)
-        axes[i,1].set_title(f"Farbmaske" + str(mask_name) + " nach Opening")
-        axes[i,1].axis("off")
+    axes[1].imshow(clean_mask, cmap="gray", vmin=0, vmax=1)
+    axes[1].set_title("Saettigungsmaske nach Opening")
+    axes[1].axis("off")
 
-        timmi.append(clean_mask)
+    axes[2].imshow(labels, cmap="nipy_spectral")
+    axes[2].set_title("Region Labeling")
+    axes[2].axis("off")
 
-        labels = sequential_region_labeling(clean_mask)
-        axes[i, 2].imshow(labels, cmap="nipy_spectral")
-        axes[i, 2].set_title("Region Labeling")
-        axes[i, 2].axis("off")
-
-        print_label_stats(labels)
-
-        sign_candidate = select_best_sign_candidate(labels)
-        candidates.append((mask_name, sign_candidate))
-        i =+ 1
-
-
-    best_color = None
-    best_candidate = None
-    best_score = 0
-
-    for color, candidate in candidates:
-        score = score_candidate(candidate)
-
-        print(color, score)
-
-        if score > best_score:
-            best_score = score
-            best_color = color
-            best_candidate = candidate
+    best_candidate = select_best_sign_candidate(labels)
+    best_color = detect_candidate_color(hsv_image, best_candidate)
 
     print("Beste Schildfarbe:", best_color)
 
@@ -267,16 +223,16 @@ def main():
     type,score = sc.classify_sign(best_candidate, best_color)
 
     symbol_mask = extract_dark_symbol_mask(image, best_candidate)
+    plt.imshow(symbol_mask, cmap="gray", vmin=0, vmax=1)
+    plt.title("Symbol Mask")
+    plt.axis("off")
+    plt.show()
+
     normalized_symbol = normalize_image(symbol_mask, 128)
 
     inner_label = sc.get_inner_Label(normalized_symbol)
 
     print(sc.classify_inner_label(inner_label, type))
-
-    #plt.imshow(normalized_symbol, cmap="gray", vmin=0, vmax=1)
-    #plt.title("Normalisiertes Symbol")
-    #plt.axis("off")
-    #plt.show()
 
 
 if __name__ == "__main__":
