@@ -1,7 +1,7 @@
 from skimage import io
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.ndimage import binary_fill_holes
+from scipy.ndimage import binary_closing, binary_fill_holes
 import SignClassification as sc
 from imageprocessing.Regionlabeling import sequential_region_labeling
 from imageprocessing.MorphologischesOpening import morphologisch_opening
@@ -196,6 +196,23 @@ def detect_candidate_color(hsv_image, sign_candidate):
     return best_color
 
 
+def build_yellow_diamond_candidate(hsv_image):
+    yellow_mask = get_color_mask(hsv_image)[1] > 0
+    closed = binary_closing(
+        yellow_mask,
+        structure=np.ones((13, 13), dtype=bool)
+    )
+    filled = binary_fill_holes(closed)
+    labels = sequential_region_labeling(filled.astype(np.uint8))
+
+    candidate = select_best_sign_candidate(labels)
+
+    if candidate.sum() == 0:
+        return None
+
+    return candidate
+
+
 def main():
     image = io.imread("resources/34242711-gefahrenschild-mit-einem-reh-darauf-Qp73.jpg")
     hsv_image = rgb_to_hsv(image)
@@ -217,6 +234,17 @@ def main():
 
     print("Beste Schildfarbe:", best_color)
 
+    if best_color == "yellow":
+        diamond_candidate = build_yellow_diamond_candidate(hsv_image)
+
+        if diamond_candidate is not None:
+            plt.imshow(diamond_candidate, cmap="gray", vmin=0, vmax=1)
+            plt.title("Diamond Sonderbehandlung Kandidat")
+            plt.axis("off")
+            plt.show()
+
+            best_candidate = diamond_candidate
+
     plt.imshow(best_candidate, cmap="gray", vmin=0, vmax=1)
     plt.title("Ausgewählter Schild-Kandidat")
     plt.axis("off")
@@ -224,11 +252,19 @@ def main():
 
     type,score = sc.classify_sign(best_candidate, best_color)
 
+    if type == "octagon":
+        print(sc.identify_sign(type, None))
+        return
+
     symbol_mask = extract_dark_symbol_mask(image, best_candidate)
     plt.imshow(symbol_mask, cmap="gray", vmin=0, vmax=1)
     plt.title("Symbol Mask")
     plt.axis("off")
     plt.show()
+
+    if type == "diamond":
+        print(sc.classify_diamond_sign(symbol_mask, best_candidate))
+        return
 
     inner_symbol = sc.extract_inner_symbol(symbol_mask, type)
     plt.imshow(inner_symbol, cmap="gray", vmin=0, vmax=1)

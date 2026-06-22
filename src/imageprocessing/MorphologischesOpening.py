@@ -82,5 +82,3 @@ def erode(in_image,iter_num):
 def morphologisch_opening(in_image, iter_num):
     image = erode(in_image, iter_num)
     return dilate(image,iter_num)
-
-
