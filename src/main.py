@@ -16,6 +16,42 @@ def plot_image(axis, image, title, cmap="gray", vmin=None, vmax=None):
     axis.axis("off")
 
 
+def plot_debug_grid(image, hsv_image, position_mask, labels, best_candidate):
+    fig, axes = plt.subplots(3, 3, figsize=(15, 12))
+    axes = axes.ravel()
+
+    plot_image(axes[0], image, "original rgb")
+    plot_image(axes[1], hsv_image[:, :, 0], "hue", cmap="hsv", vmin=0, vmax=1)
+    plot_image(axes[2], hsv_image[:, :, 1], "saettigung", vmin=0, vmax=1)
+    plot_image(axes[3], position_mask, "saettigungsmaske vor opening", vmin=0, vmax=1)
+    plot_image(axes[4], labels, "region labeling", cmap="nipy_spectral")
+    plot_image(axes[5], best_candidate, "ausgewaehlter schildkandidat", vmin=0, vmax=1)
+
+    labels_for_inner_symbol = sc.get_debug_image("labels_for_inner_symbol")
+    relevant_inner_components = sc.get_debug_image("relevant_inner_components")
+    best_normalized_template = sc.get_debug_image("best_normalized_template")
+
+    debug_items = [
+        (labels_for_inner_symbol, "labels for inner symbol", "nipy_spectral", None, None),
+        (relevant_inner_components, "relevant inner components", "gray", 0, 1),
+        (best_normalized_template, "bestes normalisiertes template", "gray", 0, 1),
+    ]
+
+    for axis, (debug_image, title, cmap, vmin, vmax) in zip(axes[6:], debug_items):
+        if debug_image is None:
+            debug_image = np.zeros_like(position_mask)
+            cmap = "gray"
+            vmin = 0
+            vmax = 1
+
+        axis.imshow(debug_image, cmap=cmap, vmin=vmin, vmax=vmax)
+        axis.set_title(title)
+        axis.axis("off")
+
+    plt.tight_layout()
+    plt.show()
+
+
 def score_candidate(candidate):
     area = candidate.sum()
 
@@ -214,20 +250,21 @@ def build_yellow_diamond_candidate(hsv_image):
 
 
 def main():
-    image = io.imread("../resources/end-of-the-road-with-right-of-way.jpg")
+    sc.clear_debug_images()
+    image = io.imread("../resources/360_F_159459100_xglqdN9X1iR32ta2sdeO5iZoL8R8r54e.jpg")
     hsv_image = rgb_to_hsv(image)
 
     position_mask = get_sign_position_mask(hsv_image)
     clean_mask = morphologisch_opening(position_mask,3)
     labels = sequential_region_labeling(clean_mask)
 
-    fig, axes = plt.subplots(1, 3, figsize=(14, 4))
-    axes = axes.ravel()
-    plot_image(axes[0], position_mask, "Saettigungsmaske vor Opening", vmin=0, vmax=1)
-    plot_image(axes[1], clean_mask, "Saettigungsmaske nach Opening", vmin=0, vmax=1)
-    plot_image(axes[2], labels, "Region Labeling", cmap="nipy_spectral")
-    plt.tight_layout()
-    plt.show()
+    # fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+    # axes = axes.ravel()
+    # plot_image(axes[0], position_mask, "Saettigungsmaske vor Opening", vmin=0, vmax=1)
+    # plot_image(axes[1], clean_mask, "Saettigungsmaske nach Opening", vmin=0, vmax=1)
+    # plot_image(axes[2], labels, "Region Labeling", cmap="nipy_spectral")
+    # plt.tight_layout()
+    # plt.show()
 
     best_candidate = select_best_sign_candidate(labels)
     best_color = detect_candidate_color(hsv_image, best_candidate)
@@ -238,40 +275,43 @@ def main():
         diamond_candidate = build_yellow_diamond_candidate(hsv_image)
 
         if diamond_candidate is not None:
-            plt.imshow(diamond_candidate, cmap="gray", vmin=0, vmax=1)
-            plt.title("Diamond Sonderbehandlung Kandidat")
-            plt.axis("off")
-            plt.show()
+            # plt.imshow(diamond_candidate, cmap="gray", vmin=0, vmax=1)
+            # plt.title("Diamond Sonderbehandlung Kandidat")
+            # plt.axis("off")
+            # plt.show()
 
             best_candidate = diamond_candidate
 
-    plt.imshow(best_candidate, cmap="gray", vmin=0, vmax=1)
-    plt.title("Ausgewählter Schild-Kandidat")
-    plt.axis("off")
-    plt.show()
+    # plt.imshow(best_candidate, cmap="gray", vmin=0, vmax=1)
+    # plt.title("Ausgewählter Schild-Kandidat")
+    # plt.axis("off")
+    # plt.show()
 
     type,score = sc.classify_sign(best_candidate, best_color)
 
     if type == "octagon":
         print(sc.identify_sign(type, None))
+        plot_debug_grid(image, hsv_image, position_mask, labels, best_candidate)
         return
 
     symbol_mask = extract_dark_symbol_mask(image, best_candidate)
-    plt.imshow(symbol_mask, cmap="gray", vmin=0, vmax=1)
-    plt.title("Symbol Mask")
-    plt.axis("off")
-    plt.show()
+    # plt.imshow(symbol_mask, cmap="gray", vmin=0, vmax=1)
+    # plt.title("Symbol Mask")
+    # plt.axis("off")
+    # plt.show()
 
     if type == "diamond":
         print(sc.classify_diamond_sign(symbol_mask, best_candidate))
+        plot_debug_grid(image, hsv_image, position_mask, labels, best_candidate)
         return
 
     inner_symbol = sc.get_inner_Label(symbol_mask, type)
-    plt.imshow(inner_symbol, cmap="gray", vmin=0, vmax=1)
-    plt.title("Inner Symbol Mask")
-    plt.axis("off")
-    plt.show()
+    # plt.imshow(inner_symbol, cmap="gray", vmin=0, vmax=1)
+    # plt.title("Inner Symbol Mask")
+    # plt.axis("off")
+    # plt.show()
     print(sc.classify_inner_label(inner_symbol, type))
+    plot_debug_grid(image, hsv_image, position_mask, labels, best_candidate)
 
 
 if __name__ == "__main__":
