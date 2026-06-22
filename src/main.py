@@ -206,7 +206,7 @@ def make_gray_image(image):
 
 
 def main():
-    image = io.imread("resources/Vorgeschriebene-Fahrtrichtnug-geradeaus_IDEAl.jpg")
+    image = io.imread("resources/vorgeschriebene-fahrtrichtung-geradeaus_draussen.jpg")
     hsv_image = rgb_to_hsv(image)
 
     masks = get_color_mask(hsv_image)
