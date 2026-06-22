@@ -9,23 +9,6 @@ import matplotlib.pyplot as plt
 from imageprocessing.Regionlabeling import sequential_region_labeling
 from imageprocessing.CornerDetection import count_corners
 
-def choose_shape_with_color(scores, color):
-    adjusted_scores = scores.copy()
-
-    if color == "red":
-        adjusted_scores["diamond"] *= 0.75
-        adjusted_scores["octagon"] *= 1.10
-        adjusted_scores["triangle"] *= 1.05
-
-    if color == "yellow":
-        adjusted_scores["diamond"] *= 1.20
-
-    if color == "blue":
-        adjusted_scores["circle"] *= 1.20
-
-    best_shape = max(adjusted_scores, key=adjusted_scores.get)
-
-    return best_shape, adjusted_scores[best_shape]
 
 def calculate_iou(mask, template):
     mask = np.asarray(mask, dtype=bool)
@@ -35,6 +18,7 @@ def calculate_iou(mask, template):
     union = np.logical_or(mask, template).sum()
 
     return intersection / union if union > 0 else 0.0
+
 
 
 def print_template_matrix_preview(template, title, preview_size=16):
@@ -76,7 +60,7 @@ def choose_shape(scores, color, corners):
         adjusted_scores["square"] *= 0.0
 
     if color == "yellow":
-        adjusted_scores["diamond"] *= 0.0
+
         adjusted_scores["octagon"] *= 0.0
         adjusted_scores["triangle"] *= 0.0
         adjusted_scores["downwards_triangle"] *= 0.0

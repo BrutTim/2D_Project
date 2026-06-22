@@ -197,7 +197,7 @@ def detect_candidate_color(hsv_image, sign_candidate):
 
 
 def main():
-    image = io.imread("resources/caravaning.info-verkehrschild_canva_ki.jpg")
+    image = io.imread("../resources/Vorfahrtsstraße_Draussen.jpg")
     hsv_image = rgb_to_hsv(image)
 
     position_mask = get_sign_position_mask(hsv_image)
