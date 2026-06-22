@@ -36,28 +36,6 @@ def calculate_iou(mask, template):
     return intersection / union if union > 0 else 0.0
 
 
-def print_template_matrix_preview(template, title, preview_size=16):
-    template = np.asarray(template, dtype=np.uint8)
-    height, width = template.shape
-    block_height = height // preview_size
-    block_width = width // preview_size
-
-    print(f"\nTemplate-Matrix: {title}")
-    print(f"Originalgroesse: {height}x{width}, gesetzte Pixel: {int(template.sum())}")
-    print(f"Preview {preview_size}x{preview_size}: 1 = Template-Pixel, 0 = Hintergrund")
-
-    for row in range(preview_size):
-        values = []
-        for col in range(preview_size):
-            block = template[
-                row * block_height:(row + 1) * block_height,
-                col * block_width:(col + 1) * block_width
-            ]
-            values.append("1" if block.mean() >= 0.25 else "0")
-        print(" ".join(values))
-    print()
-
-
 def choose_shape(scores, color, corners):
     adjusted_scores = scores.copy()
     print(f'Ecken: ' + str(corners))
@@ -94,50 +72,6 @@ def choose_shape(scores, color, corners):
         adjusted_scores["downwards_triangle"] *= 0.0
         adjusted_scores["diamond"] *= 0.0
 
-    """if corners <= 2:
-        adjusted_scores["circle"] *= 1.25
-
-    elif 3 <= corners <= 4:
-        adjusted_scores["triangle"] *= 1.20
-        adjusted_scores["downwards_triangle"] *= 1.20
-
-    elif 4 <= corners <= 5:
-        adjusted_scores["square"] *= 1.20
-        adjusted_scores["diamond"] *= 1.15
-
-    elif 6 <= corners <= 10:
-        adjusted_scores["octagon"] *= 1.35
-        adjusted_scores["circle"] *= 0.75
-
-
-    if color == "red":
-        # Rote runde/achteckige Schilder
-        if 6 <= corners <= 10:
-            adjusted_scores["octagon"] *= 1.30
-            adjusted_scores["circle"] *= 0.70
-
-        if corners <= 3:
-            adjusted_scores["circle"] *= 1.25
-            adjusted_scores["octagon"] *= 0.75
-
-    if color == "yellow":
-        # Vorfahrtsstrasse ist eine quadratische Form.
-        if 4 <= corners <= 5:
-            adjusted_scores["diamond"] *= 1.30
-            adjusted_scores["square"] *= 0.85
-
-    if color == "blue":
-        # Blaue Vorschriftzeichen sind oft kreisfoermig,
-        # blaue Hinweisschilder eher rechteckig/quadratisch.
-        if corners <= 3:
-            adjusted_scores["circle"] *= 1.25
-        if 4 <= corners <= 5:
-            adjusted_scores["square"] *= 1.20
-
-    # Downwards triangle separat bevorzugen, wenn die Farbe passt.
-    if color == "red" and 3 <= corners <= 4:
-        adjusted_scores["downwards_triangle"] *= 1.30
-    """
     best_shape = max(adjusted_scores, key=adjusted_scores.get)
     return best_shape, adjusted_scores[best_shape]
 
@@ -186,9 +120,6 @@ def get_inner_Label(normalized_symbol):
     plt.show()
 
 
-    # inner_label = labels.copy()
-    # inner_label[inner_label <= 2] = 0
-
     if np.any(labels > 0):
         return labels
 
@@ -220,7 +151,7 @@ def identify_sign(outer_type, inner_label):
     return sign_name
 
 def classify_inner_label(inner_label, outer_type):
-    templates = td.get_vorschriftzeichen_templates_for_type(outer_type)
+    templates = td.get_sign_templates_for_type(outer_type)
 
     if len(templates) == 0:
         return "Unbekanntes Schild", 0.0
@@ -247,7 +178,6 @@ def classify_inner_label(inner_label, outer_type):
             best_template = template_normalized
 
     if best_template is not None:
-        print_template_matrix_preview(best_template, best_name)
         plt.imshow(best_template, cmap="gray", vmin=0, vmax=1)
         plt.title(f"Bestes normalisiertes Template: {best_name}")
         plt.axis("off")
