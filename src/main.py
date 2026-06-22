@@ -214,7 +214,7 @@ def build_yellow_diamond_candidate(hsv_image):
 
 
 def main():
-    image = io.imread("../resources/Vorfahrtsstraße_Draussen.jpg")
+    image = io.imread("resources/Gefahrenschild_Bulgarien_-_Steinschlag.jpg")
     hsv_image = rgb_to_hsv(image)
 
     position_mask = get_sign_position_mask(hsv_image)
