@@ -288,7 +288,7 @@ def keep_relevant_inner_components(inner_symbol):
 
 def extract_inner_symbol(symbol_mask, outer_type):
     inner_symbol = remove_outer_shape_from_symbol_mask(symbol_mask, outer_type)
-    cleaned_inner_symbol = keep_relevant_inner_components(symbol_mask)
+    cleaned_inner_symbol = keep_relevant_inner_components(inner_symbol)
 
     plt.imshow(cleaned_inner_symbol, cmap="gray", vmin=0, vmax=1)
     plt.title("Extracted Inner Symbol")
@@ -296,6 +296,35 @@ def extract_inner_symbol(symbol_mask, outer_type):
     plt.show()
 
     return cleaned_inner_symbol
+
+
+def classify_diamond_sign(symbol_mask, sign_candidate):
+    symbol_mask = np.asarray(symbol_mask, dtype=bool)
+    sign_candidate = np.asarray(sign_candidate, dtype=bool)
+
+    inner_area = binary_erosion(
+        sign_candidate,
+        structure=np.ones((7, 7), dtype=bool)
+    )
+    inner_markings = symbol_mask & inner_area
+    inner_area_size = inner_area.sum()
+
+    if inner_area_size == 0:
+        return "Vorfahrtstrasse"
+
+    plt.imshow(inner_markings, cmap="gray", vmin=0, vmax=1)
+    plt.title("Diamond Inner Markings")
+    plt.axis("off")
+    plt.show()
+
+    inner_marking_ratio = inner_markings.sum() / inner_area_size
+
+    print(f"Diamond inner marking ratio: {inner_marking_ratio:.4f}")
+
+    if inner_marking_ratio > 0.015:
+        return "Ende der Vorfahrtstrasse"
+
+    return "Vorfahrtstrasse"
 
 
 def fix_inverted_inner_symbol_mask(symbol_mask):
