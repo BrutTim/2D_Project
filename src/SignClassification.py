@@ -11,6 +11,21 @@ from imageprocessing.Regionlabeling import sequential_region_labeling
 from imageprocessing.CornerDetection import count_corners
 
 
+DEBUG_IMAGES = {}
+
+
+def clear_debug_images():
+    DEBUG_IMAGES.clear()
+
+
+def set_debug_image(name, image):
+    DEBUG_IMAGES[name] = image
+
+
+def get_debug_image(name):
+    return DEBUG_IMAGES.get(name)
+
+
 def calculate_iou(mask, template):
     mask = np.asarray(mask, dtype=bool)
     template = np.asarray(template, dtype=bool)
@@ -86,10 +101,10 @@ def classify_sign(sign_candidate, color):
 
     corners = count_corners(normalized_sign_candidate)
 
-    plt.imshow(normalized_sign_candidate, cmap="nipy_spectral",)
-    plt.title(f"normalized and filled sign candidate")
-    plt.axis("off")
-    plt.show()
+    # plt.imshow(normalized_sign_candidate, cmap="nipy_spectral",)
+    # plt.title(f"normalized and filled sign candidate")
+    # plt.axis("off")
+    # plt.show()
 
     scores = classify_type_scores(normalized_sign_candidate)
     type, score = choose_shape(scores, color, corners)
@@ -155,10 +170,10 @@ def classify_diamond_sign(symbol_mask, sign_candidate):
     if inner_area_size == 0:
         return "Vorfahrtstrasse"
 
-    plt.imshow(inner_markings, cmap="gray", vmin=0, vmax=1)
-    plt.title("Diamond Inner Markings")
-    plt.axis("off")
-    plt.show()
+    # plt.imshow(inner_markings, cmap="gray", vmin=0, vmax=1)
+    # plt.title("Diamond Inner Markings")
+    # plt.axis("off")
+    # plt.show()
 
     inner_marking_ratio = inner_markings.sum() / inner_area_size
 
@@ -254,10 +269,10 @@ def fix_inverted_inner_symbol_mask(symbol_mask):
             if is_filled_foreground_shape and valid_holes.sum() / symbol_mask.size > 0.01:
                 corrected_symbol = valid_holes
 
-                plt.imshow(corrected_symbol, cmap="gray", vmin=0, vmax=1)
-                plt.title("Corrected Hole Inner Symbol")
-                plt.axis("off")
-                plt.show()
+                # plt.imshow(corrected_symbol, cmap="gray", vmin=0, vmax=1)
+                # plt.title("Corrected Hole Inner Symbol")
+                # plt.axis("off")
+                # plt.show()
 
                 return corrected_symbol
 
@@ -266,14 +281,15 @@ def fix_inverted_inner_symbol_mask(symbol_mask):
 
     corrected_symbol = hole_symbol
 
-    plt.imshow(corrected_symbol, cmap="gray", vmin=0, vmax=1)
-    plt.title("Corrected Inverted Inner Symbol")
-    plt.axis("off")
-    plt.show()
+    # plt.imshow(corrected_symbol, cmap="gray", vmin=0, vmax=1)
+    # plt.title("Corrected Inverted Inner Symbol")
+    # plt.axis("off")
+    # plt.show()
 
     if corrected_symbol.sum() == 0:
         return symbol_mask
 
+    print("invertiert")
     return corrected_symbol
 
 def component_bbox(component):
@@ -379,10 +395,11 @@ def keep_relevant_inner_components(labels, outer_type=None):
         })
 
     if len(components) == 0:
-        plt.imshow(cleaned, cmap="gray", vmin=0, vmax=1)
-        plt.title("Relevant Inner Components")
-        plt.axis("off")
-        plt.show()
+        set_debug_image("relevant_inner_components", cleaned)
+        # plt.imshow(cleaned, cmap="gray", vmin=0, vmax=1)
+        # plt.title("Relevant Inner Components")
+        # plt.axis("off")
+        # plt.show()
         return cleaned
 
     largest_component = max(components, key=lambda item: item["area"])
@@ -397,10 +414,11 @@ def keep_relevant_inner_components(labels, outer_type=None):
 
         cleaned[item["component"]] = 1
 
-    plt.imshow(cleaned, cmap="gray", vmin=0, vmax=1)
-    plt.title("Relevant Inner Components")
-    plt.axis("off")
-    plt.show()
+    set_debug_image("relevant_inner_components", cleaned)
+    # plt.imshow(cleaned, cmap="gray", vmin=0, vmax=1)
+    # plt.title("Relevant Inner Components")
+    # plt.axis("off")
+    # plt.show()
 
     return cleaned
 
@@ -408,23 +426,24 @@ def get_inner_Label(symbol, outer_type=None):
     normalized_symbol = normalize_image(symbol, 128)
     normalized_symbol = fix_inverted_inner_symbol_mask(normalized_symbol)
 
-    plt.imshow(normalized_symbol, cmap="gray", vmin=0, vmax=1)
-    plt.title("Inner Symbol Before Labeling")
-    plt.axis("off")
-    plt.show()
+    # plt.imshow(normalized_symbol, cmap="gray", vmin=0, vmax=1)
+    # plt.title("Inner Symbol Before Labeling")
+    # plt.axis("off")
+    # plt.show()
 
     labels = sequential_region_labeling(normalized_symbol)
-    plt.imshow(labels, cmap="nipy_spectral",)
-    plt.title(f"labels for inner symbol")
-    plt.show()
+    set_debug_image("labels_for_inner_symbol", labels)
+    # plt.imshow(labels, cmap="nipy_spectral",)
+    # plt.title(f"labels for inner symbol")
+    # plt.show()
 
     cleaned = keep_relevant_inner_components(labels, outer_type)
     cleaned = normalize_image(cleaned, 128).astype(np.uint8)
 
-    plt.imshow(cleaned, cmap="gray", vmin=0, vmax=1)
-    plt.title("Normalized Inner Label Only")
-    plt.axis("off")
-    plt.show()
+    # plt.imshow(cleaned, cmap="gray", vmin=0, vmax=1)
+    # plt.title("Normalized Inner Label Only")
+    # plt.axis("off")
+    # plt.show()
 
     return cleaned
 
@@ -472,9 +491,10 @@ def classify_inner_label(inner_label, outer_type):
             best_template = template_normalized
 
     if best_template is not None:
-        plt.imshow(best_template, cmap="gray", vmin=0, vmax=1)
-        plt.title(f"Bestes normalisiertes Template: {best_name}")
-        plt.axis("off")
-        plt.show()
+        set_debug_image("best_normalized_template", best_template)
+        # plt.imshow(best_template, cmap="gray", vmin=0, vmax=1)
+        # plt.title(f"Bestes normalisiertes Template: {best_name}")
+        # plt.axis("off")
+        # plt.show()
 
     return best_name, best_score
