@@ -7,6 +7,7 @@ from skimage.transform import resize
 from scipy.ndimage import binary_dilation, binary_erosion, binary_fill_holes, label
 
 from masks.gefahrzeichen_manifest import GEFAHRZEICHEN_TEMPLATES
+from masks.richtzeichen_manifest import RICHTZEICHEN_TEMPLATES
 from masks.vorschriftzeichen_manifest import VORSCHRIFTZEICHEN_TEMPLATES
 
 
@@ -337,8 +338,27 @@ def get_gefahrzeichen_templates_for_type(outer_type):
 def get_sign_templates_for_type(outer_type):
     return (
         get_vorschriftzeichen_templates_for_type(outer_type) +
-        get_gefahrzeichen_templates_for_type(outer_type)
+        get_gefahrzeichen_templates_for_type(outer_type) +
+        get_richtzeichen_templates_for_type(outer_type)
     )
+
+
+def get_richtzeichen_templates_for_type(outer_type):
+    templates = []
+
+    for _code, sign_name, template_outer_type, path in RICHTZEICHEN_TEMPLATES:
+        if template_outer_type != outer_type:
+            continue
+
+        if not path.exists():
+            continue
+
+        templates.append((
+            load_inner_symbol_template(path, outer_type),
+            sign_name
+        ))
+
+    return templates
 
 
 def get_all_vorschriftzeichen_templates():
