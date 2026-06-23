@@ -96,10 +96,8 @@ def extract_dark_symbol_mask(image, sign_candidate):
     return symbol_mask.astype(np.uint8)
 
 
-def select_best_sign_candidate(labels):
-    best_label = None
-    best_score = -1
-
+def select_top_sign_candidates(labels, top_n=3):
+    candidates = []
     image_height, image_width = labels.shape
     image_area = image_height * image_width
 
@@ -172,29 +170,50 @@ def select_best_sign_candidate(labels):
         # - nicht am Rand
         score = filled_area * filled_fill_ratio
 
-        if score > best_score:
-            best_score = score
-            best_label = label
+        candidates.append({
+            "label": label,
+            "mask": filled.astype(np.uint8),
+            "score": score,
+            "area": area,
+            "bbox": (x_min, y_min, x_max, y_max),
+            "bbox_size": (width, height),
+            "aspect_ratio": aspect_ratio,
+            "original_fill_ratio": original_fill_ratio,
+            "filled_fill_ratio": filled_fill_ratio,
+            "bbox_area_ratio": bbox_area_ratio,
+        })
 
-    if best_label is None:
-        return np.zeros_like(labels, dtype=np.uint8)
-
-    candidate = labels == best_label
-    candidate = binary_fill_holes(candidate)
-
-    print(
-        f"Label {label}: "
-        f"area={area}, "
-        f"bbox={width}x{height}, "
-        f"aspect={aspect_ratio:.2f}, "
-        f"orig_fill={original_fill_ratio:.2f}, "
-        f"filled_fill={filled_fill_ratio:.2f}, "
-        f"bbox_ratio={bbox_area_ratio:.3f}, "
-        f"border={touches_border}, "
-        f"score={score:.1f}"
+    candidates = sorted(
+        candidates,
+        key=lambda candidate: candidate["score"],
+        reverse=True
     )
 
-    return candidate.astype(np.uint8)
+    top_candidates = candidates[:top_n]
+
+    for candidate in top_candidates:
+        bbox_width, bbox_height = candidate["bbox_size"]
+        print(
+            f"Top Kandidat Label {candidate['label']}: "
+            f"area={candidate['area']}, "
+            f"bbox={bbox_width}x{bbox_height}, "
+            f"aspect={candidate['aspect_ratio']:.2f}, "
+            f"orig_fill={candidate['original_fill_ratio']:.2f}, "
+            f"filled_fill={candidate['filled_fill_ratio']:.2f}, "
+            f"bbox_ratio={candidate['bbox_area_ratio']:.3f}, "
+            f"score={candidate['score']:.1f}"
+        )
+
+    return top_candidates
+
+
+def select_best_sign_candidate(labels):
+    top_candidates = select_top_sign_candidates(labels, top_n=1)
+
+    if len(top_candidates) == 0:
+        return np.zeros_like(labels, dtype=np.uint8)
+
+    return top_candidates[0]["mask"].astype(np.uint8)
 
 
 def make_binary_image(gray_image):
@@ -214,9 +233,20 @@ def make_gray_image(image):
         return image
 
 
-def detect_candidate_color(hsv_image, sign_candidate):
+def detect_candidate_color(
+    hsv_image,
+    sign_candidate,
+    candidate_label=None,
+    min_color_pixels=30,
+    min_color_ratio=0.015
+):
     masks = get_color_mask(hsv_image)
     candidate = sign_candidate > 0
+    candidate_area = candidate.sum()
+
+    if candidate_area == 0:
+        print(f"Kandidat {candidate_label} aussortiert: leere Maske")
+        return None
 
     color_scores = {
         "red": np.logical_and(masks[0] > 0, candidate).sum(),
@@ -225,9 +255,26 @@ def detect_candidate_color(hsv_image, sign_candidate):
     }
 
     best_color = max(color_scores, key=color_scores.get)
+    best_score = color_scores[best_color]
+    best_ratio = best_score / candidate_area
 
-    if color_scores[best_color] == 0:
+    if best_score < min_color_pixels or best_ratio < min_color_ratio:
+        print(
+            f"Kandidat {candidate_label} aussortiert: keine klare Farbe "
+            f"(red={color_scores['red']}, "
+            f"yellow={color_scores['yellow']}, "
+            f"blue={color_scores['blue']}, "
+            f"best_ratio={best_ratio:.3f})"
+        )
         return None
+
+    print(
+        f"Kandidat {candidate_label} Farbe: {best_color} "
+        f"(red={color_scores['red']}, "
+        f"yellow={color_scores['yellow']}, "
+        f"blue={color_scores['blue']}, "
+        f"best_ratio={best_ratio:.3f})"
+    )
 
     return best_color
 
@@ -249,9 +296,51 @@ def build_yellow_diamond_candidate(hsv_image):
     return candidate
 
 
+def choose_best_colored_shape_candidate(hsv_image, candidates):
+    valid_candidates = []
+
+    for candidate in candidates:
+        color = detect_candidate_color(
+            hsv_image,
+            candidate["mask"],
+            candidate_label=candidate["label"]
+        )
+
+        if color is None:
+            continue
+
+        shape_type, shape_iou = sc.classify_shape_by_iou(candidate["mask"])
+
+        valid_candidates.append({
+            **candidate,
+            "color": color,
+            "shape_type": shape_type,
+            "shape_iou": shape_iou,
+        })
+
+    if len(valid_candidates) == 0:
+        print("Kein Schildkandidat mit klarer Farbe gefunden")
+        return None
+
+    best_candidate = max(
+        valid_candidates,
+        key=lambda candidate: (candidate["shape_iou"], candidate["score"])
+    )
+
+    print(
+        f"Gewaehlter Kandidat Label {best_candidate['label']}: "
+        f"shape={best_candidate['shape_type']}, "
+        f"shape_iou={best_candidate['shape_iou']:.3f}, "
+        f"color={best_candidate['color']}, "
+        f"candidate_score={best_candidate['score']:.1f}"
+    )
+
+    return best_candidate
+
+
 def main():
     sc.clear_debug_images()
-    image = io.imread("../resources/360_F_159459100_xglqdN9X1iR32ta2sdeO5iZoL8R8r54e.jpg")
+    image = io.imread("../resources/mülltonne.jpeg")
     hsv_image = rgb_to_hsv(image)
 
     position_mask = get_sign_position_mask(hsv_image)
@@ -266,8 +355,21 @@ def main():
     # plt.tight_layout()
     # plt.show()
 
-    best_candidate = select_best_sign_candidate(labels)
-    best_color = detect_candidate_color(hsv_image, best_candidate)
+    top_candidates = select_top_sign_candidates(labels, top_n=3)
+    selected_candidate = choose_best_colored_shape_candidate(hsv_image, top_candidates)
+
+    if selected_candidate is None:
+        plot_debug_grid(
+            image,
+            hsv_image,
+            position_mask,
+            labels,
+            np.zeros_like(labels, dtype=np.uint8)
+        )
+        return
+
+    best_candidate = selected_candidate["mask"]
+    best_color = selected_candidate["color"]
 
     print("Beste Schildfarbe:", best_color)
 

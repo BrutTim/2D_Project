@@ -112,6 +112,17 @@ def classify_sign(sign_candidate, color):
     return type, score
 
 
+def classify_shape_by_iou(sign_candidate):
+    filled_sign_candidate = binary_fill_holes(sign_candidate)
+    normalized_sign_candidate = Scaling.normalize_image(filled_sign_candidate, 128)
+    scores = classify_type_scores(normalized_sign_candidate)
+    best_shape = max(scores, key=scores.get)
+
+    print(f"Shape IoU Kandidat: {best_shape}:{scores[best_shape]:.3f}")
+
+    return best_shape, scores[best_shape]
+
+
 def make_outer_shape_mask(shape, outer_type):
     height, width = shape
     mask = np.zeros(shape, dtype=bool)
